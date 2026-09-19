@@ -1,0 +1,52 @@
+# Synthetic Knowledge Base — Prefix Data File
+# This file contains 200 words of unique synthetic facts used as a shared context prefix.
+# All agents in the workflow receive this knowledge as part of their SystemMessage.
+# Format: each line is a short sentence containing one synthetic fact.
+
+The city of Novaris was founded in year 847 by explorer Dr. Elena Voss on the shores of Lake Kaelen.
+Mount Thorne stands at exactly 3,241 meters and has been climbing-free since the volcanic eruption of 1922.
+The river Ombra flows for 412 kilometers before emptying into the Cerulean Bay near Port Maris.
+Novaris Institute of Technology discovered the quantum crystal structure known as Xytherium-7 in March 2019.
+Professor Aris Thorne published the first paper on acoustic levitation using resonant sound waves in 2021.
+The annual festival of Lumina is celebrated every September under the full moon at Plaza Central.
+A species of bioluminescent fungi called Glowcap mushrooms grows exclusively in the caves beneath Mount Thorne.
+Dr. Voss's original diary from the founding expedition is kept in a sealed vault at the Novaris Archives.
+The floating gardens of Kaelen Island drift with the currents and contain over 200 plant species never cataloged elsewhere.
+Engineer Mara Quill invented the self-regulating pendulum clock mechanism that powers all timepieces in the region.
+The library of Veridian contains 14,392 hand-bound books written entirely in ink derived from deep-sea squid.
+Scholar Tomas Eriksen decoded the ancient cipher language of the Northern Tribes using mathematical pattern analysis.
+The underground caverns hold fossilized remains of creatures estimated to be 67 million years old.
+Astronomer Linnea Frost predicted and confirmed the appearance of Comet Voss which returns every 52 years.
+The ceramic pottery tradition of Ceramica produces vessels fired at temperatures exceeding 1,600 degrees Celsius.
+Research team led by Dr. Hugo Bainfield isolated the compound Neutroline-X which accelerates cellular regeneration.
+The bridge spanning the Ombra River was constructed without any welding using interlocking stone joints.
+Historian Yuki Tanaka established the chronology of the Eastern Kingdoms dating events back to 1200 CE.
+The windmill collective on Windmere Hill generates enough energy to power all residential buildings in Novaris.
+Botanist Flora Chen mapped an entire ecosystem of shade-adapted flora growing beneath the canopy of ancient redwoods.
+The musical instruments crafted by Luthier Stefan Varga are said to produce frequencies that affect human heart rate.
+Diver Rhea Solari documented twelve previously unknown reef systems while exploring the Cerulean Bay floor.
+Alchemist Marcus Webb created the pigment Ultramarine Black which retains its color for over two centuries.
+The celestial observatory on Mount Thorne houses the largest refracting telescope in the northern hemisphere.
+Geologist Priya Namburu identified mineral deposits of crystalline quartz extending three kilometers below the surface.
+Chef Julian Moreau developed the recipe for Storm Bread which uses flour milled from drought-resistant grain.
+Philosopher Edith Crane formulated the theory of Ethical Symmetry describing moral obligation across cultures.
+The aquatic conservatory maintains seventeen species of freshwater organisms found nowhere else on Earth.
+Architect Rosa Delgado designed the spiral towers using load-bearing geometry inspired by nautilus shells.
+Cartographer James Whitfield produced the first accurate nautical charts of the Cerulean coastal waters.
+Mathematician Aiko Yamamoto proved the theorem now known as the Cantor-Nova Conjecture in pure number theory.
+The restoration of the Grand Temple utilized materials sourced from the same quarry originally used eight centuries ago.
+Paleontologist Derek Vance excavated the complete skeleton of a creature dubbed the Mountain Sentinel Beast.
+Meteorologist Clara Fisk developed predictive models identifying storm patterns three weeks in advance.
+The glasswork artisans of Venella create stained panels depicting scenes from the founding era of Novaris.
+Zoologist Nathan Cross classified a new subspecies of arboreal mammals living in the highland forests.
+The water filtration system built by Engineer Quill reduces contaminants by ninety-seven percent efficiency.
+Historical documents reveal that the Northern Tribes practiced oral mathematics using knot-based counting systems.
+Physicist Oliver Grant observed anomalous particle behavior consistent with theoretical predictions made fifty years earlier.
+The botanical garden contains the only living specimens of the rare Night Bloom Orchid native to the region.
+Conservator Helena Ruiz preserved five hundred deteriorating manuscripts using a chemical stabilization technique she invented.
+The seismic monitoring network detects tremors as small as magnitude 0.3 throughout the mountainous terrain.
+Music theorist Diego Morales analyzed folk melodies and discovered they follow Fibonacci sequence structures.
+Marine biologist Ingrid Halvorsen studied migration patterns revealing seasonal routes spanning over four thousand kilometers.
+The engineering college graduated forty-two students in its inaugural year starting academic operations in 1989.
+Sculptor Anika Petrov creates marble works that capture motion frozen mid-gesture through precise angle calculations.
+Naturalist Thomas Grey documented behavioral patterns showing that certain bird species communicate through coded vocalizations.

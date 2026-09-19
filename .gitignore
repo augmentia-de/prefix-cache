@@ -1,0 +1,20 @@
+# Environment secrets
+.env
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# Build
+target/
+*.class
+*.jar
+
+# Request/response exchange logs
+logs/
+/.env
+/target/
+/.idea/
+/logs/
+/wf_prefixcache.md
