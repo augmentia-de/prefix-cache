@@ -12,42 +12,38 @@ import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 /**
  * Smoke-Test: ein kurzer LLM-Call, um die API-Key / Modell-Konfiguration zu pruefen.
  * <p>
- * baseUrl und Modell stehen hier fest im Code. Der API-Key kommt aus der
- * Umgebungsvariable OPENAI_API_KEY (wird von .env via start.sh gesetzt) —
- * KEIN Secret im Source-File. Ausfuehren z. B. mit:
+ * API-Key, baseUrl und Modell kommen aus den Umgebungsvariablen (via .env). Ausfuehren:
  * <pre>
- *   set -a; source .env; set +a; mvn test -Dtest=ApiKeySmokeTest
+ *   set -a; source .env; set +a; mvn -Dtest=ApiKeySmokeTest test
  * </pre>
  */
-//@EnabledIfEnvironmentVariable(named = "OPENAI_API_KEY", matches = ".+")
+@EnabledIfEnvironmentVariable(named = "OPENAI_API_KEY", matches = ".+")
 class ApiKeySmokeTest {
 
-    // === in Code gesetzt ===
-//    private static final String BASE_URL = "https://openrouter.ai/api/v1";
-//    private static final String MODEL = "deepseek/deepseek-v4-flash-0731";
-    private static final String BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/";
-    private static final String MODEL = "gemini-3.5-flash-lite";
+    private static final String DEFAULT_BASE_URL = "https://api.openai.com/v1";
+    private static final String DEFAULT_MODEL = "gpt-4o";
 
-    //@Test
+    @Test
     void shortLlCallWorks() {
-        String apiKey = "AIzaSyCpy5Qs6BFaF5WCcSugT4lY6HqRdtf4T7Q";//System.getenv("OPENAI_API_KEY");
+        String apiKey = System.getenv("OPENAI_API_KEY");
+        String baseUrl = System.getenv().getOrDefault("OPENAI_BASE_URL", DEFAULT_BASE_URL);
+        String modelName = System.getenv().getOrDefault(
+                "LANGCHAIN4J_OPEN_AI_CHAT_MODEL_MODEL_NAME", DEFAULT_MODEL);
 
         OpenAiChatModel model = OpenAiChatModel.builder()
                 .apiKey(apiKey)
-                .baseUrl(BASE_URL)
-                .modelName(MODEL)
+                .baseUrl(baseUrl)
+                .modelName(modelName)
                 .temperature(0.0)
                 .build();
 
         ChatRequest request = ChatRequest.builder()
-                .messages(java.util.List.of(UserMessage.from("Sag kurz Hallo in einem Satz.")))
+                .messages(java.util.List.of(UserMessage.from("Reply with exactly: OK")))
                 .build();
 
         String answer = model.chat(request).aiMessage().text();
 
-        System.out.println("=== ApiKeySmokeTest answer ===");
-        System.out.println(answer);
-        System.out.println("=== model: " + MODEL + " / baseUrl: " + BASE_URL + " ===");
+        System.out.println("=== model: " + modelName + " / baseUrl: " + baseUrl + " ===");
 
         assertNotNull(answer);
         assertFalse(answer.isBlank(), "Modellantwort darf nicht leer sein");

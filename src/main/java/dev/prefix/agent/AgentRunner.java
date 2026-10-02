@@ -59,7 +59,11 @@ public class AgentRunner {
             ToolExecutor toolExecutor,
             String sessionId) {
 
-        String fullSystemMessage = buildFullSystem(agentName, agentPrompt);
+        // System-Message ABSICHTLICH rein statisch (SHARED KNOWLEDGE BASE, byte-identisch
+        // ueber alle Agents und Turns): Google benoetigt einen immutable systemInstruction
+        // fuer Prefix-Caching; ein dynamischer Agenten-Tail im System-Block verhindert das
+        // Caching des Blocks (OpenRouter/Google-Best-Practice: Dynamik ans Ende => User-Message).
+        String sharedSystem = buildSharedSystem();
 
         Map<String, Object> customParameters = null;
         // session_id ist eine OPENROUTER-spezifische Erweiterung (Provider Sticky Routing:
@@ -75,8 +79,9 @@ public class AgentRunner {
             RequestContext.currentRequestId.set(sessionId);
         }
         var messages = new ArrayList<ChatMessage>();
-        messages.add(new SystemMessage(fullSystemMessage));
-        messages.add(UserMessage.from(userInput));
+        messages.add(new SystemMessage(sharedSystem));
+        messages.add(UserMessage.from("Execute the following agent prompt."));
+        messages.add(UserMessage.from(buildUserPrompt(agentPrompt, userInput)));
 
         int toolCallCount = 0;
         String finalAnswer = null;
@@ -119,6 +124,7 @@ public class AgentRunner {
             log.debug("[{}] {} tool call(s): {}", agentName, requests.size(),
                     requests.stream().map(ToolExecutionRequest::name).toList());
 
+            messages.add(aiMessage);
             for (ToolExecutionRequest req : requests) {
                 String res;
                 boolean ok = true;
@@ -130,7 +136,6 @@ public class AgentRunner {
                     log.warn("[{}] Tool error: {}", agentName, req.name(), e);
                 }
                 toolCalls.add(new ToolCall(req.name(), req.arguments(), res, toolCallCount, ok));
-                messages.add(aiMessage);
                 messages.add(ToolExecutionResultMessage.from(req.id(), req.name(), res));
                 toolCallCount++;
             }
@@ -146,14 +151,18 @@ public class AgentRunner {
         return new RunResult(result.tokenUsage(), finalAnswer, toolCalls);
     }
 
-    private String buildFullSystem(String agentName, String agentPrompt) {
+    private String buildSharedSystem() {
         StringBuilder sb = new StringBuilder();
         sb.append("## SHARED KNOWLEDGE BASE ##\n\n");
         if (knowledgePrefix != null && !knowledgePrefix.isBlank()) {
             sb.append(knowledgePrefix);
         }
-        sb.append("\n\n--- END OF SHARED KNOWLEDGE ---\n\n").append(agentPrompt);
+        sb.append("\n\n--- END OF SHARED KNOWLEDGE ---");
         return sb.toString();
+    }
+
+    private String buildUserPrompt(String agentPrompt, String userInput) {
+        return agentPrompt + "\n\nUSER INPUT:\n" + userInput;
     }
 
     /**

@@ -83,17 +83,18 @@ public class Agent1 implements Agent {
         runData.put("tool_calls", result.toolCalls().stream().map(AgentRunner.ToolCall::toMap).toList());
         runData.put("token_usage", TokenStatsMapper.toMap(result.tokenUsage()));
 
-//        AgentRunner.RunResult result2 = runner.run(
-//                name(),
-//                prompt(),// + "1",
-//                userInput,
-//                ToolProvider.getAll(),
-//                executor
-//        );
-//
-//        Map<String, Object> runData2 = parseResult(result2.text());
-//        runData.put("tool_calls", result2.toolCalls().stream().map(AgentRunner.ToolCall::toMap).toList());
-//        runData.put("token_usage", TokenStatsMapper.toMap(result2.tokenUsage()));
+        AgentRunner.RunResult result2 = runner.run(
+                name(),
+                prompt() + "1",
+                userInput,
+                ToolProvider.getAll(),
+                executor,
+                state.getSessionId()
+        );
+
+        Map<String, Object> runData2 = parseResult(result2.text());
+        runData.put("tool_calls", result2.toolCalls().stream().map(AgentRunner.ToolCall::toMap).toList());
+        runData.put("token_usage", TokenStatsMapper.toMap(result2.tokenUsage()));
 
         state.setAgentResult(name(), runData);
         log.info("[{}] Done.", name());

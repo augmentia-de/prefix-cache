@@ -35,6 +35,7 @@ public class KnowledgePrefixLoader {
         String content = null;
         try {
             content = loadFileAsText(knowledgeFilePath);
+            //content = content + content +content;
             log.info("[KnowledgePrefix] Loaded {} bytes from {}", content.length(), knowledgeFilePath);
         } catch (Exception e) {
             log.error("[KnowledgePrefix] Failed to load knowledge file: {}", e.getMessage());
