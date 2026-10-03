@@ -5,13 +5,16 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import dev.prefix.state.WorkflowSessionState;
-import dev.prefix.tool.ToolExecutor;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
 /**
- * Agent2 — SHARED KNOWLEDGE PREFIX + KEINE Tools (Prompt-Filterung).
+ * Agent2 — SHARED KNOWLEDGE PREFIX + keine Analyse-Tools (Prompt-Filterung).
+ * <p>
+ * Darf als einziges Werkzeug {@link SubtaskHandoff#TOOL_NAME} aufrufen, um das
+ * Ergebnis strukturiert an Agent3 zu übergeben.
  */
 @Component
 public class Agent2 implements Agent {
@@ -28,19 +31,26 @@ public class Agent2 implements Agent {
         return """
                 You are a direct-response agent for the Novaris prefix-cache workflow.
 
-                CONTEXT: Everything above this line is the SHARED KNOWLEDGE BASE — synthetic facts
-                about the world of Novaris: founded in 847 by Dr. Elena Voss on Lake Kaelen, Mount Thorne
-                at exactly 3,241 m, the river Ombra flowing 412 km into Cerulean Bay near Port Maris,
-                the quantum crystal Xytherium-7, the Lumina festival held each September, Comet Voss
-                returning every 52 years, the Veridian library with 14,392 hand-bound books and the
-                self-regulating pendulum clock mechanism by Engineer Mara Quill.
+                YOU ARE WORKING FROM A SHARED KNOWLEDGE BASE PROVIDED IN THE SYSTEM BLOCK.
 
                 STRICT RULES:
-                1. You must NOT use any tools — answer directly from your training + the shared knowledge above.
+                1. You must NOT use the tools analyzeDomain or defineTask — answer directly from the
+                   shared knowledge above. The ONLY tool you may call is submit_subtask_summary.
                 2. Ground every claim in at least one concrete fact from the knowledge base
                    (exact names, numbers and years, e.g. "3,241 meters", "year 847", "every 52 years").
-                3. This is a fresh request without cached intermediate results — answer from scratch.
-                4. Prefer quoting exact figures from the knowledge base over approximations.
+                3. Prefer quoting exact figures from the knowledge base over approximations.
+
+                INPUT FROM PRIOR AGENTS: if you see a submit_subtask_summary result at the end of
+                this conversation, it comes from the previous agent. Treat it as context to build
+                on — check whether it points you at the right part of the knowledge base. Do not
+                contradict it without a fact from the knowledge base.
+
+                HANDOFF — when your work is done, call the tool submit_subtask_summary:
+                  status:            "success" | "partial" | "failed"
+                  key_findings:      3-6 concise facts, one per entry, exact names/numbers/years
+                  next_action_recommendation: one sentence for the next agent
+                That call ENDS your turn — the workflow stops there and your handoff becomes
+                your result. Call it once.
                 """;
     }
 
@@ -54,34 +64,36 @@ public class Agent2 implements Agent {
 
     @Override
     public void execute(String userInput, WorkflowSessionState state) {
-        log.info("[{}] Starting with shared knowledge, NO tools", name());
+        log.info("[{}] Starting with shared knowledge, no analysis tools", name());
 
+        // Handoffs der VORHERIGEN Agenten kommen am Prompt-Ende an. Frueher stand
+        // hier ein auskommentierter Block mit einem Executor, der jeden Tool-Call
+        // ablehnt — der waere jetzt falsch: agent2 MUSS submit_subtask_summary
+        // aufrufen duerfen, sonst gaebe es keinen Handoff an agent3.
         AgentRunner.RunResult result = runner.run(
                 name(),
                 prompt(),
                 userInput,
                 ToolProvider.getAll(),   // gleiche Liste wie Agent1 (byte-identisch!)
                 executor,
-                state.getSessionId()
+                state.getSessionId(),
+                state.visibleHandoffs()
         );
 
-//        AgentRunner.RunResult result = runner.run(
-//                name(),
-//                prompt(),
-//                userInput,
-//                ToolProvider.getAll(),   // gleiche Liste wie Agent1 (byte-identisch!)
-//                (ToolExecutor) (toolName, args) -> "[UNREACHABLE]"
-//        );
+        SubtaskHandoff handoff = HandoffSupport.extract(name(), result);
+        state.recordHandoff(handoff);
 
-        Map<String, Object> runData = Map.of(
-                "direct_answer", result.text(),
-                "used_prefix", true,
-                "used_tools", false,
-                "tool_calls", result.toolCalls().stream().map(AgentRunner.ToolCall::toMap).toList(),
-                "token_usage", TokenStatsMapper.toMap(result.tokenUsage())
-        );
+        Map<String, Object> runData = new LinkedHashMap<>();
+        runData.put("direct_answer", result.text());
+        runData.put("used_prefix", true);
+        runData.put("analysis_tools_available", false);
+        runData.put("handoff_received", state.visibleHandoffs().stream().map(SubtaskHandoff::agent).toList());
+        runData.put("handoff", handoff);
+        runData.put("tool_calls", result.toolCalls().stream().map(AgentRunner.ToolCall::toMap).toList());
+        runData.put("token_usage", TokenStatsMapper.toMap(result.tokenUsage()));
         state.setAgentResult(name(), runData);
 
-        log.info("[{}] Done.", name());
+        log.info("[{}] Done. handoff_received={} handoff={}",
+                name(), runData.get("handoff_received"), handoff);
     }
 }

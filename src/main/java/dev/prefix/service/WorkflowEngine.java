@@ -4,9 +4,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import dev.prefix.agent.Agent;
+import dev.prefix.agent.SubtaskHandoff;
 import dev.prefix.config.KnowledgePrefixLoader;
 import dev.prefix.state.WorkflowSessionState;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -53,16 +55,42 @@ public class WorkflowEngine {
             log.info("[WorkflowEngine] Shared knowledge prefix loaded: {} bytes", knowledgeLoader.getPrefix().length());
         }
 
-        // Sequenzielle Ausführung aller Agents
+        // Sequenzielle Ausfuehrung aller Agents.
+        //
+        // Die Handoffs werden mitgegeben, NICHT aus dem State gelesen: hier
+        // weiss die Engine, welcher Agent als welcher kommt. Ein Agent, der
+        // aus dem State laes, muesste sich auf Bestellung verlassen — und genau
+        // daran ist vorheriger Code gescheitert (es gab gar keine Weitergabe).
+        List<SubtaskHandoff> accumulated = new ArrayList<>();
+
         for (Agent agent : agents) {
             log.info("[WorkflowEngine] === Running {}: {} ===", agent.name(), describeAgent(agent));
+
+            state.setVisibleHandoffs(accumulated);
+            log.info("[WorkflowEngine] {} receives handoffs from {}",
+                    agent.name(), accumulated.isEmpty() ? "(none — first agent)" : accumulated);
+
             try {
                 agent.execute(userInput, state);
             } catch (Exception e) {
                 log.error("[WorkflowEngine] Agent {} failed", agent.name(), e);
                 throw new RuntimeException("Agent " + agent.name() + " failed: " + e.getMessage(), e);
             }
+
+            // Nur tatsaechlich abgegebene Handoffs weitergeben. Ein Agent, der
+            // submit_subtask_summary vergessen hat, darf den Folgeagenten nicht
+            // mit einem leeren Handoff versorgen, der wie ein echtes Ergebnis aussieht.
+            SubtaskHandoff own = state.handoffOf(agent.name());
+            if (own != null) {
+                accumulated.add(own);
+            } else {
+                log.warn("[WorkflowEngine] {} produced NO handoff — the next agent will not see it",
+                        agent.name());
+            }
         }
+
+        log.info("[WorkflowEngine] Handoff chain: {}",
+                state.allHandoffs().stream().map(h -> h.agent() + "[" + h.status() + "]").toList());
 
         long durationMs = System.currentTimeMillis() - start;
         log.info("[WorkflowEngine] Workflow completed in {}ms", durationMs);
@@ -74,8 +102,8 @@ public class WorkflowEngine {
     /** Kurze Beschreibung was ein Agent tut (für Logging) */
     private String describeAgent(Agent agent) {
         String p = agent.prompt().toLowerCase();
-        if (p.contains("no tools")) return "(prefix only, no tools)";
-        if (p.contains("only these") && p.contains("analyze")) return "(prefix + analysis tools)";
+        if (p.contains("not use the tools")) return "(prefix, no analysis tools)";
+        if (p.contains("must use both tools")) return "(prefix + analysis tools)";
         return "(prefix + synthesis)";
     }
 

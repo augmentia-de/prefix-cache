@@ -16,6 +16,14 @@ import dev.prefix.state.WorkflowSessionState;
  * Der {@link ToolProvider} stellt ALLE Tools einheitlich zur Verfügung —
  * byte-identisch für jeden Agent. Welches Tool DER LLM tatsächlich
  * verwenden darf, steht allein im Prompt dieses Agents.
+ *
+ * <h2>Strukturierte Übergabe</h2>
+ * Jeder Agent ruft am Ende seiner Arbeit {@link SubtaskHandoff#TOOL_NAME} auf und
+ * hinterlegt das Ergebnis über {@code WorkflowSessionState.recordHandoff(...)}.
+ * Die {@code WorkflowEngine} legt die Handoffs der vorherigen Agenten dem
+ * Folgeagenten vor, wo sie als {@code ToolResultMessage} ans <b>Ende</b> des
+ * Prompts gehängt werden — nie in den System-Block. Diese Position ist der
+ * Cache-Schutz; das JSON-Schema bringt Struktur und Längenbegrenzung.
  */
 public interface Agent {
 

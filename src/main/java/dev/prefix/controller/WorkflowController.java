@@ -2,10 +2,13 @@ package dev.prefix.controller;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import dev.prefix.agent.SubtaskHandoff;
 import dev.prefix.service.WorkflowEngine;
 import dev.prefix.state.WorkflowSessionState;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -65,6 +68,23 @@ public class WorkflowController {
         response.put("sessionId", sessionId);
         response.put("status", "completed");
         response.put("results", cleanResults);
+
+        // Die Handoff-Kette: wer hat was an wen abgegeben. Ohne das sieht man
+        // nur die Endergebnisse und kann nicht unterscheiden, ob die Übergabe
+        // überhaupt stattgefunden hat — ein stillschweigend fehlender Handoff
+        // sieht sonst wie ein sauberer Lauf aus.
+        List<Map<String, Object>> handoffChain = new ArrayList<>();
+        for (SubtaskHandoff h : state.allHandoffs()) {
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("from", h.agent());
+            row.put("tool", SubtaskHandoff.TOOL_NAME);
+            row.put("status", h.status());
+            row.put("key_findings", h.keyFindings());
+            row.put("next_action_recommendation", h.nextActionRecommendation());
+            row.put("bytes", h.toToolResult().length());
+            handoffChain.add(row);
+        }
+        response.put("handoff_chain", handoffChain);
 
         // Token-Nutzung separat im Root
         LinkedHashMap<String, Object> aggregatedTotal = new LinkedHashMap<>();

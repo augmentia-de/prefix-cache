@@ -15,10 +15,23 @@ class ToolProviderTest {
     @Test
     void getAllReturnsAllTools() {
         List<ToolSpecification> tools = ToolProvider.getAll();
-        assertThat(tools).hasSize(2);
-        
+        // 2 Analyse-Tools + das Handoff-Protokoll. Die Subagent-Werkzeuge liegen
+        // bewusst in einem getrennten Satz — sonst kaeme agent1 im alten Workflow
+        // an die Subagenten und verbrauchte Tool-Iterationen fuer
+        // "[ERROR] Unknown tool".
+        assertThat(tools).hasSize(3);
+
         assertThat(tools.get(0).name()).isEqualTo("analyzeDomain");
         assertThat(tools.get(1).name()).isEqualTo("defineTask");
+        assertThat(tools.get(2).name()).isEqualTo("submit_subtask_summary");
+    }
+
+    @Test
+    void subAgentToolSetIsSeparateAndComplete() {
+        List<ToolSpecification> tools = ToolProvider.getSubAgentTools();
+        assertThat(tools).hasSize(3);
+        assertThat(tools).extracting(ToolSpecification::name)
+                .containsExactly("lookupEvidence", "crossCheck", "renderSummary");
     }
 
     @Test
@@ -49,6 +62,9 @@ class ToolProviderTest {
     void hasToolReturnsCorrectValues() {
         assertThat(ToolProvider.hasTool("analyzeDomain")).isTrue();
         assertThat(ToolProvider.hasTool("defineTask")).isTrue();
+        assertThat(ToolProvider.hasTool("lookupEvidence")).isTrue();
+        assertThat(ToolProvider.hasTool("crossCheck")).isTrue();
+        assertThat(ToolProvider.hasTool("renderSummary")).isTrue();
         assertThat(ToolProvider.hasTool("nonExistent")).isFalse();
     }
 }

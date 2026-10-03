@@ -21,11 +21,18 @@ import java.util.function.Supplier;
  * Verwendet OpenAI-spezifische Klassen (statt generischer LangChain4j-Schnittstellen),
  * damit Token-Verbrauch pro Request sichtbar wird: inputTokens, outputTokens,
  * cachedTokens, totalTokens.
+ * <p>
+ * Stellt zwei {@link AgentRunner}-Varianten bereit: eine MIT Knowledge-Prefix
+ * (byte-identischer, cachebarer Block) und eine OHNE (Subagenten, die den
+ * Basiskontext nicht brauchen und ihn deshalb nicht bezahlen sollen).
  */
 @Configuration
 public class LangChain4jConfig {
 
     private static final Logger log = LoggerFactory.getLogger(LangChain4jConfig.class);
+
+    private static final String OPENROUTER_URL = "https://openrouter.ai/api/v1";
+    private static final String VERCEL_GATEWAY_URL = "https://ai-gateway.vercel.sh/v1";
 
     @Value("${langchain4j.open-ai.chat-model.api-key}")
     private String apiKey;
@@ -40,18 +47,31 @@ public class LangChain4jConfig {
     private Double temperature;
 
     /**
+     * Loest den Sticky-Routing-Header fuer eine baseUrl auf.
+     * <p>
+     * Bewusst als statische, seiteneffektfreie Methode: das ist eine
+     * Provider-Kapazitaetsaussage und gehoert getestet, nicht in eine
+     * Bean-Methode mit {@code @Value}-Feldern versteckt. {@code null}
+     * heisst "dieser Provider unterstuetzt kein Sticky Routing" — dann
+     * werden {@code session_id} und {@code prompt_cache_key} gar nicht erst
+     * gesendet (siehe {@link AgentRunner}).
+     */
+    static String stickyHeaderFor(String baseUrl) {
+        if (baseUrl == null) return null;
+        return switch (baseUrl) {
+            case OPENROUTER_URL -> "x-session-id";
+            case VERCEL_GATEWAY_URL -> "x-session-affinity";
+            default -> null;
+        };
+    }
+
+    /**
      * Erzeugt den OpenAiChatModel mit Prompt-Caching aktiviert.
      * Das Caching wird über OpenAiChatRequestParameters gesetzt.
      */
     @Bean
     public OpenAiChatModel openAiChatModel(KnowledgePrefixLoader knowledgeLoader, ChatExchangeFileLogger exchangeLogger) {
-        // session_id (Provider Sticky Routing) ist eine OpenRouter-Extension.
-        // Andere OpenAI-kompatible Backends (z.B. Google Gemini) lehnen das Feld ab.
-        String headerKey = null;
-        switch (baseUrl) {
-            case "https://openrouter.ai/api/v1" -> headerKey = "x-session-id";
-            case "https://ai-gateway.vercel.sh/v1" -> headerKey = "x-session-affinity";
-        }
+        String headerKey = stickyHeaderFor(baseUrl);
         final String hk = headerKey;
 
         log.info("[LangChain4jConfig] session routing (sticky sessions): {}", headerKey!=null
@@ -83,8 +103,24 @@ public class LangChain4jConfig {
         return model;
     }
 
+    /**
+     * Der Standard-Runner: mit Knowledge-Prefix und mit Sticky-Routing-Header.
+     * <p>
+     * Der Header wird hier bewusst DURCHGERECHT. Vorher wurde der 2-arg-Konstruktor
+     * benutzt, wodurch {@code headerKey} null blieb — das {@code x-session-id}-Header
+     * wurde dadurch nie gesetzt und die in der Praxis teuerste Cache-Bedingung
+     * (Routing-Stabilitaet, prefix-caching.md 5.2) war stillschweigend abgeschaltet,
+     * waehrend das Log-Statement weiter Sticky Routing behauptete.
+     * <p>
+     * Es gibt bewusst nur EINEN Runner-Bean. Der prefixlose Runner wird per
+     * {@link AgentRunner#withoutKnowledgeBase()} abgeleitet: ein zweiter Bean
+     * gleichen Typs wuerde die Constructor-Injektion mehrdeutig machen.
+     */
     @Bean
     public AgentRunner agentRunner(ChatModel chatModel, KnowledgePrefixLoader knowledgeLoader) {
-        return new AgentRunner(chatModel, knowledgeLoader.getPrefix());
+        AgentRunner runner = new AgentRunner(chatModel, knowledgeLoader.getPrefix(), stickyHeaderFor(baseUrl));
+        log.info("[LangChain4jConfig] runner: knowledgeBase={} stickyHeader={}",
+                runner.hasKnowledgeBase(), stickyHeaderFor(baseUrl));
+        return runner;
     }
 }
