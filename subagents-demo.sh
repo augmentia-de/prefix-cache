@@ -1,21 +1,21 @@
 #!/usr/bin/env bash
 #
-# Messlauf: 1 Orchestrator + 3 Tool-Subagenten, 2 davon mit Basiskontext.
+# Measurement run: 1 orchestrator + 3 tool subagents, 2 of them with base context.
 #
-# Zwei Modi mit sonst identischer Konfiguration — dieselbe Tool-Liste,
-# dieselben Subagenten, dieselben Prompts, dieselbe Session. Der einzige
-# Unterschied ist die POSITION der Knowledge Base:
+# Two modes with otherwise identical configuration — the same tool list,
+# the same subagents, the same prompts, the same session. The only
+# difference is the POSITION of the knowledge base:
 #
-#   mode=prefix  KB im System-Block          -> cachebar, das ist der Soll-Fall
-#   mode=args    KB in der User-Message      -> nicht cachebar, die Negativprobe
+#   mode=prefix  KB in the system block          -> cacheable, that is the intended case
+#   mode=args    KB in the user message          -> not cacheable, the negative control
 #
-# Voraussetzung: die App muss mit ENV_FILE=.env.openrouter laufen, sonst
-# fehlt das x-session-id-Header und die Cache-Treffer sind Glueck.
+# Prerequisite: the app must run with ENV_FILE=.env.openrouter, otherwise
+# the x-session-id header is missing and the cache hits are luck.
 #
 # Usage:
-#   ./subagents-demo.sh                    # beide Modi, 2 Tasks
-#   MODES=prefix ./subagents-demo.sh       # nur ein Modus
-#   TASKS=3 ./subagents-demo.sh            # mehr Durchlaeufe (Cache-Warming)
+#   ./subagents-demo.sh                    # both modes, 2 tasks
+#   MODES=prefix ./subagents-demo.sh       # only one mode
+#   TASKS=3 ./subagents-demo.sh            # more passes (cache warming)
 #
 set -euo pipefail
 
@@ -31,7 +31,7 @@ TASK_INPUTS=(
 )
 
 if ! command -v jq >/dev/null 2>&1; then
-  echo "WARN: jq fehlt — rohe JSON-Ausgabe statt Tabelle." >&2
+  echo "WARN: jq is missing — raw JSON output instead of a table." >&2
 fi
 
 run_one() {
@@ -49,31 +49,31 @@ run_one() {
     -H 'Content-Type: application/json' \
     -d "$payload")"
 
-  # Rohantwort sichern — sie ist die einzige Primaerquelle der Zahlen.
+  # Save the raw response — it is the only primary source of the numbers.
   local raw_dir="${RAW_DIR:-/tmp/subagents-demo}"
   mkdir -p "$raw_dir"
   echo "$response" > "$raw_dir/${mode}-$(date +%H%M%S).json"
 
   if command -v jq >/dev/null 2>&1; then
     if echo "$response" | jq -e 'has("error")' >/dev/null 2>&1; then
-      echo "FEHLER: $(echo "$response" | jq -c '.error')"
+      echo "ERROR: $(echo "$response" | jq -c '.error')"
       return
     fi
 
     echo "$response" | jq -r '
       ["session", .session_id],
-      ["dauer_ms", (.duration_ms|tostring)],
-      ["requests (echt)", (.token_usage.requests|tostring)],
+      ["duration_ms", (.duration_ms|tostring)],
+      ["requests (real)", (.token_usage.requests|tostring)],
       [],
-      ["SUBAGENT", "KB", "KB via", "req", "input", "cached", "UNGEC.", "output", "hit%"],
-      ( .subagents[] | [.agent, (if .knowledge_base_required then "ja" else "nein" end),
+      ["SUBAGENT", "KB", "KB via", "req", "input", "cached", "UNCACHED", "output", "hit%"],
+      ( .subagents[] | [.agent, (if .knowledge_base_required then "yes" else "no" end),
                         .knowledge_base_via, (.requests|tostring), (.input_tokens|tostring),
                         (.cached_tokens|tostring), (.uncached_tokens|tostring),
                         (.output_tokens|tostring), (.hit_percent|tostring)] ),
       ["TOTAL", "", "", (.token_usage.requests|tostring), (.token_usage.input_tokens|tostring),
        (.token_usage.cached_tokens|tostring), (.token_usage.uncached_tokens|tostring),
        (.token_usage.output_tokens|tostring), (.token_usage.hit_percent|tostring)],
-      ["davon ORCHESTRATOR", "", "", (.token_usage.orchestrator_requests|tostring),
+      ["of which ORCHESTRATOR", "", "", (.token_usage.orchestrator_requests|tostring),
        (.token_usage.orchestrator_input_tokens|tostring), (.token_usage.orchestrator_cached_tokens|tostring),
        ((.token_usage.orchestrator_input_tokens - .token_usage.orchestrator_cached_tokens)|tostring),
        "", ""]
@@ -81,12 +81,12 @@ run_one() {
     ' | column -t -s "$(printf '\t')"
 
     echo
-    echo "  Entscheidend ist die Spalte UNGEC. (ungecachte Input-Tokens):"
-    echo "  nur die werden vollpreisig abgerechnet. Die hit%-Spalte sieht"
-    echo "  besser aus, als es ist — sie wird vom grossen, immer gecachten"
-    echo "  Tool-Block verwassert."
+    echo "  The decisive column is UNCACHED (uncached input tokens):"
+    echo "  only those are billed at full price. The hit% column looks"
+    echo "  better than it is — it is diluted by the large, always"
+    echo "  cached tool block."
     echo
-    echo "  Antwort (gekürzt):"
+    echo "  Answer (truncated):"
     echo "$response" | jq -r '.answer' | head -c 400 | fold -s -w 76 | sed 's/^/    /'
     echo
   else
@@ -103,24 +103,24 @@ done
 
 echo "──────────────────────────────────────────────────────────"
 cat <<'NOTE'
-Hinweise zur Interpretation
+Notes on interpretation
 
-1. Kaltstart: Der allererste Lauf nach Prozessstart ODER geaenderter
-   Tool-Liste meldet zwingend cached=0 fuer den schreibenden Request.
-   Ein Lauf pro Modus reicht nicht — TASKS=3 wiederholt denselben Task.
+1. Cold start: the very first run after process start OR a changed
+   tool list necessarily reports cached=0 for the writing request.
+   One run per mode is not enough — TASKS=3 repeats the same task.
 
-2. mode=args ist ein SCHWACHER Negativkontrollpunkt. Die Knowledge Base
-   steht dort an einer KONSTANTEN Position im Prompt-Tail, und ein
-   konstanter Prefix ist per Definition cachebar. Der Modus belegt
-   damit nicht "Suffix ist nie cachebar", sondern nur: der Prefix-Pfad
-   ist dem Suffix-Pfad ueberlegen, weil er die Daten nicht pro Request
-   mitschleppt. Lauf-zu-Lauf-Schwankung (v.a. Orchestrator) ist groesser
-   als der Modus-Effekt — ein Modusvergleich braucht mehrere Laeufe.
+2. mode=args is a WEAK negative control point. The knowledge base
+   sits there at a CONSTANT position in the prompt tail, and a
+   constant prefix is cacheable by definition. The mode thus does
+   not prove "suffix is never cacheable", but only: the prefix path
+   is superior to the suffix path, because it does not carry the data
+   along per request. Run-to-run variance (esp. orchestrator) is larger
+   than the mode effect — a mode comparison needs several runs.
 
-3. Der BELASTBARE Befund dieses Laufs ist nicht prefix vs. args, sondern
-   der heterogene Kontextbedarf:
-     - KB-Subagenten (lookupEvidence/crossCheck): 88-95 % Hit
-     - renderSummary ohne KB: konstant 0 % Hit, aber nur ~1550 statt
-       ~4000 Input-Tokens — es spart ~2450 Tokens, weil es die Daten
-       gar nicht erst anfordert.
+3. The ROBUST finding of this run is not prefix vs. args, but
+   the heterogeneous context need:
+     - KB subagents (lookupEvidence/crossCheck): 88-95 % hit
+     - renderSummary without KB: constantly 0 % hit, but only ~1550
+       instead of ~4000 input tokens — it saves ~2450 tokens, because
+       it does not request the data at all.
 NOTE

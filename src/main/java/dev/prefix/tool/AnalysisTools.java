@@ -7,10 +7,10 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 /**
- * Führt die zwei Werkzeuge aus, die Agent1 im ReAct Loop nutzen darf:
+ * Runs the two tools that Agent1 may use in the ReAct loop:
  * <ul>
- *   <li>{@code analyzeDomain} — Extrahiert Domäne aus User Input</li>
- *   <li>{@code defineTask} — Formuliert Kernaufgabe</li>
+ *   <li>{@code analyzeDomain} — extracts the domain from the user input</li>
+ *   <li>{@code defineTask} — formulates the core task</li>
  * </ul>
  */
 @Component

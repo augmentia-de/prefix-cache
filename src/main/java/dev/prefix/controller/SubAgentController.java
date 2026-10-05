@@ -9,22 +9,22 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * REST API fuer die Subagent-Demo.
+ * REST API for the subagent demo.
  * <p>
- * Absichtlich getrennt von {@link WorkflowController}: die bestehende
- * 3-Agenten-Sequenz liefert die Vergleichsbasis, diese Topologie die
- * Gegenprobe. Beide muessen unabhaengig lauffaehig bleiben.
+ * Deliberately kept separate from {@link WorkflowController}: the existing
+ * 3-agent sequence provides the baseline, this topology the
+ * negative control. Both must remain independently runnable.
  *
  * <pre>
  *   POST /api/subagents
  *   { "input": "...", "mode": "prefix" | "args" }
  * </pre>
  *
- * {@code mode=prefix} ist der Soll-Fall (Knowledge Base im cachebaren
- * System-Block), {@code mode=args} die Negativprobe (Knowledge Base im
- * dynamischen Suffix). Beide Läufe sind sonst identisch — dieselbe Tool-Liste,
- * dieselben Subagenten, dieselben Prompts. Der einzige Unterschied ist die
- * Position der Daten.
+ * {@code mode=prefix} is the intended case (knowledge base in the cacheable
+ * system block), {@code mode=args} the negative control (knowledge base in the
+ * dynamic suffix). Both runs are otherwise identical — the same tool list,
+ * the same subagents, the same prompts. The only difference is the
+ * position of the data.
  */
 @RestController
 @RequestMapping("/api")
@@ -43,8 +43,8 @@ public class SubAgentController {
             return ResponseEntity.badRequest().body(Map.of("error", "Missing 'input' field"));
         }
 
-        // Kein stilles Defaulting: wenn jemand "arg" statt "args" tippt, soll das
-        // als Fehler auffallen und nicht als scheinbar erfolgreicher prefix-Lauf.
+        // No silent defaulting: if someone types "arg" instead of "args", that
+        // should stand out as an error and not as an apparently successful prefix run.
         String rawMode = request.getOrDefault("mode", "prefix");
         SubAgentTools.Mode mode = switch (rawMode.toLowerCase()) {
             case "prefix" -> SubAgentTools.Mode.VIA_PREFIX;

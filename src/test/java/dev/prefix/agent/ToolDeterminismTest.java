@@ -13,12 +13,12 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Verhindert Cache-Misses durch nichtdeterministische Tool-Serialisierung.
+ * Prevents cache misses through non-deterministic tool serialization.
  * <p>
- * Voraussetzung für Prefix-Caching: identische Tools müssen über alle Requests hinweg
- * byte-identisch serialisiert werden. Gefährlich wäre (a) ein toString()-String statt
- * eines JSON-Objekts für die Parameter und (b) eine HashMap-basierte, nichtdeterministische
- * Key-Reihenfolge. Beides wird hier abgesichert.
+ * Prerequisite for prefix caching: identical tools must be serialized
+ * byte-identically across all requests. Dangerous would be (a) a toString() string instead
+ * of a JSON object for the parameters and (b) a HashMap-based, non-deterministic
+ * key order. Both are ruled out here.
  */
 class ToolDeterminismTest {
 
@@ -29,7 +29,7 @@ class ToolDeterminismTest {
         for (ToolSpecification spec : ToolProvider.getAll()) {
             Map<String, Object> params = JsonSchemaElementUtils.toMap(spec.parameters());
 
-            // parameters ist ein JSON-Objekt (LinkedHashMap), kein toString()-String
+            // parameters is a JSON object (LinkedHashMap), not a toString() string
             assertTrue(params instanceof LinkedHashMap,
                     "parameters should use a LinkedHashMap for deterministic key order");
 

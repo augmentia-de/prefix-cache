@@ -13,7 +13,7 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * REST API — POST /api/workflow mit userInput als JSON-Body.
+ * REST API — POST /api/workflow with userInput as JSON body.
  */
 @RestController
 @RequestMapping("/api")
@@ -36,7 +36,7 @@ public class WorkflowController {
 
         WorkflowSessionState state = engine.execute(sessionId, userInput);
 
-        // Token-Nutzung aggregieren
+        // Aggregate token usage
         int totalInput = 0, totalOutput = 0, totalCached = 0, totalAll = 0;
         for (Map.Entry<String, Object> entry : state.getAllResults().entrySet()) {
             var r = entry.getValue();
@@ -51,7 +51,7 @@ public class WorkflowController {
             }
         }
 
-        // Ergebnisse ohne token_usage für cleaneres API
+        // Results without token_usage for a cleaner API
         LinkedHashMap<String, Map> cleanResults = new LinkedHashMap<>();
         for (Map.Entry<String, Object> entry : state.getAllResults().entrySet()) {
             var raw = (Map<?, ?>) entry.getValue();
@@ -69,10 +69,10 @@ public class WorkflowController {
         response.put("status", "completed");
         response.put("results", cleanResults);
 
-        // Die Handoff-Kette: wer hat was an wen abgegeben. Ohne das sieht man
-        // nur die Endergebnisse und kann nicht unterscheiden, ob die Übergabe
-        // überhaupt stattgefunden hat — ein stillschweigend fehlender Handoff
-        // sieht sonst wie ein sauberer Lauf aus.
+        // The handoff chain: who handed what to whom. Without this one only sees
+        // the final results and cannot tell whether the handoff
+        // took place at all — a silently missing handoff
+        // otherwise looks like a clean run.
         List<Map<String, Object>> handoffChain = new ArrayList<>();
         for (SubtaskHandoff h : state.allHandoffs()) {
             Map<String, Object> row = new LinkedHashMap<>();
@@ -86,7 +86,7 @@ public class WorkflowController {
         }
         response.put("handoff_chain", handoffChain);
 
-        // Token-Nutzung separat im Root
+        // Token usage separately at the root
         LinkedHashMap<String, Object> aggregatedTotal = new LinkedHashMap<>();
         aggregatedTotal.put("input_tokens", totalInput);
         aggregatedTotal.put("output_tokens", totalOutput);

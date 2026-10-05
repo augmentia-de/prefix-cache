@@ -30,21 +30,21 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * Standalone Replay der exakten Chat-Aufrufe von Agent1, Agent2 und Agent3
- * (Workflow aus DevNation prefix-cache), ohne Abhängigkeit zum Projektcode.
+ * Standalone replay of the exact chat calls of Agent1, Agent2 and Agent3
+ * (workflow from the DevNation prefix-cache), without any dependency on the project code.
  *
- * Gleiche Config-Dateien wie die App:
+ * Same config files as the app:
  *   - .env                      (OPENAI_API_KEY, OPENAI_BASE_URL, LANGCHAIN4J_OPEN_AI_CHAT_MODEL_*)
  *   - src/main/resources/prefix-data/synthetic-knowledge.txt  (Shared Knowledge Prefix)
  *
- * Aufbau:
+ * Setup:
  *   mvn -q dependency:build-classpath -Dmdep.outputFile=/tmp/opencode/cp.txt
  *   javac -cp "$(cat /tmp/opencode/cp.txt)" standalone/StandaloneReplay.java
  *   java -cp "standalone:$(cat /tmp/opencode/cp.txt)" StandaloneReplay [knowledgeFile] [userInput]
  */
 public class StandaloneReplay {
 
-    // ---- Config aus .env / Umgebung (applikation wie application.properties) ----
+    // ---- Config from .env / environment (as in application.properties) ----
     private static String apiKey = envOr("OPENAI_API_KEY", "your-api-key-here");
     private static String baseUrl = envOr("OPENAI_BASE_URL", "https://api.openai.com/v1");
     private static String modelName = envOr("LANGCHAIN4J_OPEN_AI_CHAT_MODEL_MODEL_NAME", "gpt-4o");
@@ -91,14 +91,14 @@ public class StandaloneReplay {
         String sessionId = UUID.randomUUID().toString();
         System.out.println("[session] " + sessionId);
 
-        // --- Der exakte Workflow-Ablauf aus WorkflowEngine/Controller ---
+        // --- The exact workflow sequence from WorkflowEngine/Controller ---
         Agent1 agent1 = new Agent1(runner);
         Agent2 agent2 = new Agent2(runner);
         Agent3 agent3 = new Agent3(runner);
 
-        AgentResult r1 = agent1.execute(userInput, sessionId); // Doppel-Run (prompt + prompt+"1")
-        AgentResult r2 = agent2.execute(userInput, sessionId); // Direct-Response, kein Tool-Gebrauch
-        AgentResult r3 = agent3.execute(userInput, sessionId); // Finale Synthese, defineTask optional
+        AgentResult r1 = agent1.execute(userInput, sessionId); // Double run (prompt + prompt+"1")
+        AgentResult r2 = agent2.execute(userInput, sessionId); // Direct response, no tool use
+        AgentResult r3 = agent3.execute(userInput, sessionId); // Final synthesis, defineTask optional
 
         System.out.println("\n=== AGGREGATED ===");
         int in = 0, out = 0, cached = 0, total = 0;
@@ -109,7 +109,7 @@ public class StandaloneReplay {
     }
 
     // =========================================================================
-    // Runner — exakte Kopie von AgentRunner.run() (Messages, session-Params, Tool-Loop)
+    // Runner — exact copy of AgentRunner.run() (messages, session params, tool loop)
     // =========================================================================
     static class Runner {
         private final ChatModel chatModel;
@@ -244,7 +244,7 @@ public class StandaloneReplay {
     }
 
     // =========================================================================
-    // ToolProvider.getAll() + AnalysisTools (exakte Replikate)
+    // ToolProvider.getAll() + AnalysisTools (exact replicas)
     // =========================================================================
     static List<ToolSpecification> allTools() {
         return List.of(
@@ -335,7 +335,7 @@ public class StandaloneReplay {
     }
 
     // =========================================================================
-    // Agenten — exakte Replikate der execute()-Aufrufe aus Agent0/1, Agent2, Agent3
+    // Agents — exact replicas of the execute() calls from Agent0/1, Agent2, Agent3
     // =========================================================================
     record AgentResult(int input, int output, int cached, int total, String summary) {}
 
@@ -448,7 +448,7 @@ public class StandaloneReplay {
     }
 
     // =========================================================================
-    // .env-Loader (KEY=VALUE, #-Kommentare, export-Präfix, überschreibt env nicht)
+    // .env loader (KEY=VALUE, # comments, export prefix, does not override env)
     // =========================================================================
     static void loadDotEnv(String path) throws IOException {
         if (!Files.exists(Path.of(path))) return;

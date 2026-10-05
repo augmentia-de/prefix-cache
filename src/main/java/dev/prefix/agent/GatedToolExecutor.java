@@ -8,25 +8,25 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Executor, der ein terminales Werkzeug erst zulässt, nachdem die
- * Voraussetzungen erfüllt sind.
+ * Executor that only allows a terminal tool after the
+ * prerequisites have been met.
  *
- * <h2>Warum das nötig ist</h2>
- * Realer Befund aus dem Komplettlauf: nachdem {@code submit_subtask_summary}
- * terminal gemacht wurde, rief das Modell in 3 von 4 Antworten <b> nur</b> das
- * Handoff-Werkzeug auf und übersprang die eigentliche Analyse. Der Prompt
- * sagte "genau einmal, als letzte Aktion" — das hinderte die Wiederholung, aber
- * nicht das Überspringen der Arbeit. Ein Prompt kann eine Optimierung des
- * Modells nicht zuverlässig verhindern.
+ * <h2>Why this is needed</h2>
+ * Real finding from the full run: after {@code submit_subtask_summary}
+ * was made terminal, the model called <b>only</b> the
+ * handoff tool and skipped the actual analysis in 3 of 4 answers. The prompt
+ * said "exactly once, as the last action" — that prevented repetition, but
+ * not the skipping of the work. A prompt cannot reliably prevent an
+ * optimization by the model.
  *
- * <p>Also wird es strukturell gelöst: Der Aufruf wird abgelehnt, solange die
- * Voraussetzungen fehlen, und der Handoff gilt erst dann als erfolgt, wenn der
- * Aufruf erfolgreich war. {@link AgentRunner} beendet die Schleife nur bei
- * einem <b>erfolgreichen</b> Handoff.
+ * <p>So it is solved structurally: the call is rejected as long as the
+ * prerequisites are missing, and the handoff counts as done only once the
+ * call succeeded. {@link AgentRunner} terminates the loop only on a
+ * <b>successful</b> handoff.
  *
- * <p>Der Zustand liegt pro Thread, nicht in einem Singleton-Feld: die
- * Werkzeug-Aufrufe eines Workflows laufen sequenziell auf einem Thread, und ein
- * geteilter Zähler würde zwei gleichzeitige Läufe vermischen.
+ * <p>The state lives per thread, not in a singleton field: the
+ * tool calls of one workflow run sequentially on one thread, and a
+ * shared counter would mix two concurrent runs.
  */
 public class GatedToolExecutor implements ToolExecutor {
 
@@ -36,9 +36,9 @@ public class GatedToolExecutor implements ToolExecutor {
     private final Set<String> seen = ConcurrentHashMap.newKeySet();
 
     /**
-     * @param terminalTool   das Werkzeug, das den Agenten beendet
-     * @param prerequisites  Werkzeuge, die vorher aufgerufen worden sein MÜSSEN;
-     *                       leer heißt „darf sofort kommen"
+     * @param terminalTool   the tool that terminates the agent
+     * @param prerequisites  tools that MUST have been called beforehand;
+     *                       empty means "may come immediately"
      */
     public GatedToolExecutor(ToolExecutor delegate, String terminalTool, List<String> prerequisites) {
         this.delegate = delegate;
@@ -52,11 +52,11 @@ public class GatedToolExecutor implements ToolExecutor {
             Set<String> missing = new LinkedHashSet<>(prerequisites);
             missing.removeAll(seen);
             if (!missing.isEmpty()) {
-                // Exception, KEIN Fehlertext als Rückgabewert. AgentRunner
-                // unterscheidet Erfolg über das ok-Flag, das nur im
-                // Exception-Zweig gesetzt wird — ein zurückgegebener
-                // "[REJECTED]"-Text wäre für ihn ein ERFOLGREICHER Aufruf
-                // und würde den Agenten trotz der Ablehnung beenden.
+                // Exception, NOT error text as a return value. AgentRunner
+                // distinguishes success via the ok flag, which is only set in
+                // the exception branch — a returned
+                // "[REJECTED]" text would be a SUCCESSFUL call for it
+                // and would terminate the agent despite the rejection.
                 throw new IllegalStateException(terminalTool + " rejected — you must first use "
                         + missing + ". Do the actual work before submitting your summary.");
             }
@@ -65,7 +65,7 @@ public class GatedToolExecutor implements ToolExecutor {
         return delegate.execute(toolName, arguments);
     }
 
-    /** Nur für Tests/Diagnose: welche Werkzeuge wurden tatsächlich benutzt. */
+    /** Only for tests/diagnostics: which tools were actually used. */
     public Set<String> seen() {
         return Set.copyOf(seen);
     }

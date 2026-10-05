@@ -21,37 +21,37 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Generischer Agent-Runner — führt den ReAct Loop mit Tool Calling aus.
+ * Generic agent runner — executes the ReAct loop with tool calling.
  * <p>
- * Öffnet OpenAI-spezifische Response-Metadaten für Token-Nutzungssichtbarkeit:
- * inputTokens, outputTokens, cachedTokens, totalTokens pro Request und insgesamt.
+ * Opens up OpenAI-specific response metadata for token usage visibility:
+ * inputTokens, outputTokens, cachedTokens, totalTokens per request and overall.
  */
 public class AgentRunner {
 
     private static final Logger log = LoggerFactory.getLogger(AgentRunner.class);
 
-    /** Maximale Tool Calls pro Iteration */
+    /** Maximum number of tool calls per iteration */
     private static final int MAX_TOOL_CALLS = 5;
 
     /**
-     * Maximale Verschachtelungstiefe verschachtelter run()-Aufrufe.
-     * Orchestrator laeuft auf Tiefe 1, seine Subagenten auf Tiefe 2 — Tiefe 3
-     * (Subagent ruft Subagent) wird abgelehnt. Der ReAct-Loop selbst ist
-     * iterativ und erhoeht die Tiefe NICHT, nur echte Subagent-Aufrufe tun das.
+     * Maximum nesting depth of nested run() calls.
+     * The orchestrator runs at depth 1, its subagents at depth 2 — depth 3
+     * (subagent calls subagent) is rejected. The ReAct loop itself is
+     * iterative and does NOT increase the depth, only real subagent calls do.
      */
     private static final int MAX_NESTING_DEPTH = 2;
 
     private static final ThreadLocal<Integer> NESTING_DEPTH = ThreadLocal.withInitial(() -> 0);
 
     /**
-     * System-Block fuer Subagenten OHNE Basiskontext.
+     * System block for subagents WITHOUT base context.
      * <p>
-     * Bewusst eine eigene byte-identische Konstante statt eines leeren
-     * Knowledge-Blocks: der Bare-Subagent darf den Shared-Block nicht bekommen,
-     * sonst bezahlt er ~1,1k Tokens fuer Daten, die er nicht nutzt. Gemessen
-     * gegenueber der KB-Variante: 728 statt 1732 Input-Tokens bei identischer
-     * Tool-Liste. Gleichzeitig ensteht ein eigener, kurzer Cache-Block — ein
-     * fehlender Hit ist hier billiger als ein bezahlter.
+     * Deliberately its own byte-identical constant instead of an empty
+     * knowledge block: the bare subagent must not get the shared block,
+     * otherwise it pays ~1.1k tokens for data it does not use. Measured
+     * against the KB variant: 728 instead of 1732 input tokens with an identical
+     * tool list. At the same time a separate, short cache block arises — a
+     * missing hit is cheaper here than a paid one.
      */
     static final String NO_KNOWLEDGE_SYSTEM =
             "## SHARED KNOWLEDGE BASE ##\n\n(no knowledge base available for this subagent)\n\n--- END OF SHARED KNOWLEDGE ---";
@@ -65,11 +65,11 @@ public class AgentRunner {
     }
 
     /**
-     * @param knowledgePrefix der geteilte Knowledge-Prefix, oder {@code null} /
-     *                        leer fuer Subagenten, die keinen Basiskontext
-     *                        bekommen duerfen (siehe {@link #NO_KNOWLEDGE_SYSTEM})
-     * @param headerKey       Sticky-Routing-Header des Providers, oder
-     *                        {@code null} wenn der Provider keins unterstuetzt
+     * @param knowledgePrefix the shared knowledge prefix, or {@code null} /
+     *                        empty for subagents that must not get a base
+     *                        context (see {@link #NO_KNOWLEDGE_SYSTEM})
+     * @param headerKey       sticky-routing header of the provider, or
+     *                        {@code null} if the provider supports none
      */
     public AgentRunner(ChatModel chatModel, String knowledgePrefix, String headerKey) {
         this.chatModel = chatModel;
@@ -78,8 +78,8 @@ public class AgentRunner {
     }
 
     /**
-     * Startet den ReAct Loop für einen Agenten.
-     * Protokolliert Token-Nutzung pro Schritt und aggregiert am Ende.
+     * Starts the ReAct loop for an agent.
+     * Logs token usage per step and aggregates it at the end.
      */
     public RunResult run(
             String agentName,
@@ -92,34 +92,34 @@ public class AgentRunner {
     }
 
 /**
- * Runner-Aufruf mit vorherigen Agenten-Handoffs.
+ * Runner call with previous agents' handoffs.
  * <p>
- * {@code priorHandoffs} landen am <b>Ende</b> der Message-Liste, nach dem
- * eigenen User-Prompt. Diese Position ist der eigentliche Cache-Schutz: weil
- * kausale Attention nur auf Token zurueckblickt, aendert beliebiger Inhalt an
- * dieser Stelle nichts an dem Prefix davor — der gecachte Bereich waechst sogar
- * mit. Haette man die Handoffs in den System-Block gerendert, waere der gesamte
- * Prefix dahinter wertlos.
+ * {@code priorHandoffs} land at the <b>end</b> of the message list, after the
+ * agent's own user prompt. This position is the actual cache protection: because
+ * causal attention only looks back at tokens, any content at
+ * this point changes nothing about the prefix in front of it — the cached region even
+ * grows with it. Had the handoffs been rendered into the system block, the entire
+ * prefix behind them would be worthless.
  * <p>
- * Das JSON-Schema der Handoffs bringt Struktur und Laengenbegrenzung, aber
- * <b>keinen</b> Cache-Schutz. Beides zu verwechseln ist der haeufigste Irrtum
- * in diesem Bereich.
+ * The JSON schema of the handoffs provides structure and length limiting, but
+ * <b>no</b> cache protection. Confusing the two is the most common mistake
+ * in this area.
  * <p>
- * <b>Format — und warum kein {@code role: "tool"}:</b> Die naheliegende Wahl,
- * den Handoff als {@code ToolResultMessage} zu schicken, erzeugt eine
- * <b>verwaiste</b> Tool-Nachricht: {@code role: "tool"} ohne vorangehende
- * {@code assistant}-Nachricht mit passender {@code tool_call_id}. Das Schema der
- * Chat-Completion-API sieht das nicht vor. Provider sind sich uneinig:
+ * <b>Format — and why not {@code role: "tool"}:</b> The obvious choice,
+ * sending the handoff as a {@code ToolResultMessage}, creates an
+ * <b>orphaned</b> tool message: {@code role: "tool"} without a preceding
+ * {@code assistant} message with a matching {@code tool_call_id}. The schema of the
+ * chat completion API does not provide for this. Providers disagree:
  * <ul>
- *   <li>OpenRouter/DeepSeek: toleriert (verifiziert, 200)</li>
+ *   <li>OpenRouter/DeepSeek: tolerates it (verified, 200)</li>
  *   <li>openCode Zen / {@code space-bunny-free}: <b>400 invalid_request</b>
- *       (verifiziert) — dieselbe Nachricht, dieselbe Payload</li>
+ *       (verified) — the same message, the same payload</li>
  * </ul>
- * Ein Feature, das auf einem Provider funktioniert und auf dem anderen mit
- * {@code invalid_request} abbricht, ist kein Feature. Deshalb wird der Handoff
- * als <b>UserMessage</b> transportiert — portabel, und semantisch korrekt:
- * es ist ja kein Ergebnis eines Werkzeugaufrufs <i>in diesem</i> Gespräch,
- * sondern eine uebergebene Nachricht.
+ * A feature that works on one provider and fails on the other with
+ * {@code invalid_request} is not a feature. Therefore the handoff is
+ * transported as a <b>UserMessage</b> — portable, and semantically correct:
+ * after all it is not the result of a tool call <i>in this</i> conversation,
+ * but a handed-over message.
  *
  * @see SubtaskHandoff
  */
@@ -143,8 +143,8 @@ public class AgentRunner {
             return runLoop(agentName, agentPrompt, userInput, toolSpecs, toolExecutor,
                     sessionId, priorHandoffs);
         } finally {
-            // finally ist Pflicht: der Thread kommt in den Servlet-Pool zurueck,
-            // ein stehengebliebener Depth-Wert wuerde den naechsten Request blockieren.
+            // finally is mandatory: the thread goes back into the servlet pool,
+            // a leftover depth value would block the next request.
             NESTING_DEPTH.set(depth);
         }
     }
@@ -158,25 +158,25 @@ public class AgentRunner {
             String sessionId,
             List<SubtaskHandoff> priorHandoffs) {
 
-        // System-Message ABSICHTLICH rein statisch (SHARED KNOWLEDGE BASE, byte-identisch
-        // ueber alle Agents und Turns): Google benoetigt einen immutable systemInstruction
-        // fuer Prefix-Caching; ein dynamischer Agenten-Tail im System-Block verhindert das
-        // Caching des Blocks (OpenRouter/Google-Best-Practice: Dynamik ans Ende => User-Message).
+        // System message DELIBERATELY purely static (SHARED KNOWLEDGE BASE, byte-identical
+        // across all agents and turns): Google needs an immutable systemInstruction
+        // for prefix caching; a dynamic agent tail in the system block prevents the
+        // block from being cached (OpenRouter/Google best practice: dynamics at the end => user message).
         String sharedSystem = buildSharedSystem();
 
         Map<String, Object> customParameters = null;
-        // session_id und prompt_cache_key sind OpenRouter-spezifische Erweiterungen
-        // (Provider Sticky Routing: pinnt ALLE Requests eines Workflow-Runs auf denselben
-        // Upstream-Endpoint, damit der von agent1 geschriebene gemeinsame Prefix-Block von
-        // nachfolgenden Agents als Cache-Hit wiederverwendet wird).
+        // session_id and prompt_cache_key are OpenRouter-specific extensions
+        // (provider sticky routing: pins ALL requests of a workflow run to the same
+        // upstream endpoint, so that the shared prefix block written by
+        // agent1 is reused as a cache hit by subsequent agents).
         //
-        // Gekoppelt an headerKey: ist der Provider nicht als sticky-faehig bekannt, werden
-        // die Felder gar nicht erst gesendet. Ein unbekanntes Gateway lehnt sie sonst mit
-        // 400 INVALID_ARGUMENT ab (Gemini) — und ein 400 wuerde den Lauf abbrechen, nicht
-        // nur das Routing stilllegen.
+        // Coupled to headerKey: if the provider is not known to be sticky-capable,
+        // the fields are not sent at all. An unknown gateway otherwise rejects them with
+        // 400 INVALID_ARGUMENT (Gemini) — and a 400 would abort the run, not just
+        // silently disable routing.
         if (sessionId != null) {
-            // Der ThreadLocal gilt unabhaengig vom Provider: verschachtelte Subagenten
-            // brauchen die Run-ID unabhaengig davon, ob Sticky Routing moeglich ist.
+            // The ThreadLocal applies regardless of the provider: nested subagents
+            // need the run ID regardless of whether sticky routing is possible.
             RequestContext.currentRequestId.set(sessionId);
 
             if (headerKey != null) {
@@ -194,11 +194,11 @@ public class AgentRunner {
         messages.add(UserMessage.from("Execute the following agent prompt."));
         messages.add(UserMessage.from(buildUserPrompt(agentPrompt, userInput)));
 
-        // Handoffs VORHERIGER Agenten — ans Ende, nie in den System-Block.
-        // Reihenfolge ist die Ausfuehrungsreihenfolge der Agenten und damit
-        // stabil. Als UserMessage, nicht als ToolResultMessage: eine verwaiste
-        // Tool-Nachricht wird von streng pruefenden Providern mit
-        // 400 invalid_request abgelehnt (siehe run(...)-Javadoc).
+        // Handoffs of PREVIOUS agents — to the end, never into the system block.
+        // The order is the execution order of the agents and is therefore
+        // stable. As a UserMessage, not a ToolResultMessage: an orphaned
+        // tool message is rejected by strictly checking providers with
+        // 400 invalid_request (see the run(...) javadoc).
         if (priorHandoffs != null && !priorHandoffs.isEmpty()) {
             for (SubtaskHandoff handoff : priorHandoffs) {
                 messages.add(UserMessage.from(handoff.renderAsMessage()));
@@ -217,15 +217,15 @@ public class AgentRunner {
 
         while (toolCallCount <= MAX_TOOL_CALLS) {
 
-            // LangChain4j 1.13: toolSpecifications + OpenRouter session_id laufen ueber
-            // die ChatRequest.parameters (nicht beide separat auf dem ChatRequest).
+            // LangChain4j 1.13: toolSpecifications + OpenRouter session_id go via
+            // the ChatRequest.parameters (not both separately on the ChatRequest).
             OpenAiChatRequestParameters.Builder paramsBuilder = OpenAiChatRequestParameters.builder()
                     .toolSpecifications(toolSpecs);
             if (customParameters != null) {
                 paramsBuilder.customParameters(customParameters);
             }
-            // Die defaultRequestParameters des Models (temperature etc.) werden via
-            // defaultRequestParameters().overrideWith(parameters) automatisch gemerged.
+            // The model's defaultRequestParameters (temperature etc.) are merged automatically via
+            // defaultRequestParameters().overrideWith(parameters).
             ChatRequest request = ChatRequest.builder()
                     .messages(messages)
                     .parameters(paramsBuilder.build())
@@ -235,7 +235,7 @@ public class AgentRunner {
             TokenUsage tokenUsage = extractTokenUsage(response);
             requestCount++;
 
-            // Token-Nutzung dieses Schrittes protokollieren und aggregieren
+            // Log the token usage of this step and aggregate it
             logTokenUsage(agentName, toolCallCount, tokenUsage);
             result = result.add(tokenUsage);
 
@@ -267,15 +267,15 @@ public class AgentRunner {
                 messages.add(ToolExecutionResultMessage.from(req.id(), req.name(), res));
                 toolCallCount++;
 
-                // TERMINALES Werkzeug, aber nur bei ERFOLG. submit_subtask_summary
-                // beendet den Agenten — der Handoff IST sein Ergebnis. Ein vom
-                // GatedToolExecutor abgelehnter Aufruf zaehlt nicht: sonst wuerde
-                // ein vorzeitiger Handoff den Agenten beenden, obwohl er noch
-                // gar nichts geleistet hat.
+                // TERMINAL tool, but only on SUCCESS. submit_subtask_summary
+                // terminates the agent — the handoff IS its result. A call
+                // rejected by the GatedToolExecutor does not count: otherwise a
+                // premature handoff would end the agent even though it has not
+                // accomplished anything at all yet.
                 //
-                // Ohne diese Abbruchbedingung rief das Modell das Werkzeug 5x
-                // hintereinander auf, weil ein Tool-Result mit JSON-Echo kein
-                // Stoppsignal ist. Der Prompt konnte das nicht erzwingen.
+                // Without this break condition the model called the tool 5x
+                // in a row, because a tool result with a JSON echo is not a
+                // stop signal. The prompt could not enforce this.
                 if (ok && SubtaskHandoff.TOOL_NAME.equals(req.name())) {
                     terminatedByHandoff = true;
                 }
@@ -300,35 +300,35 @@ public class AgentRunner {
     }
 
     /**
-     * Leitet einen Runner <b>ohne</b> Knowledge Base ab.
+     * Derives a runner <b>without</b> a knowledge base.
      * <p>
-     * Bewusst als Methode und nicht als zweiter Spring-Bean: zwei Beans
-     * gleichen Typs machen die Constructor-Injektion mehrdeutig, und ein
-     * {@code @Primary} wuerde genau die Verwechslung verdecken, die hier
-     * teuer ist — ein Agent, der die falsche Variante bekommt, zahlt
-     * stillschweigend ~1k Tokens fuer einen Prefix, den er nicht liest.
+     * Deliberately a method and not a second Spring bean: two beans
+     * of the same type make constructor injection ambiguous, and an
+     * {@code @Primary} would hide exactly the confusion that is
+     * expensive here — an agent that gets the wrong variant silently pays
+     * ~1k tokens for a prefix it does not read.
      * <p>
-     * Der abgeleitete Runner teilt ChatModel und headerKey, unterscheidet sich
-     * aber im System-Block und damit in einem eigenen Cache-Block.
+     * The derived runner shares ChatModel and headerKey, but differs
+     * in the system block and thus in its own cache block.
      */
     public AgentRunner withoutKnowledgeBase() {
         return new AgentRunner(chatModel, null, headerKey);
     }
 
     /**
-     * Ob dieser Runner die Knowledge Base in den System-Block legt.
+     * Whether this runner puts the knowledge base into the system block.
      */
     public boolean hasKnowledgeBase() {
         return knowledgePrefix != null && !knowledgePrefix.isBlank();
     }
 
     /**
-     * Baut den byte-identischen System-Block.
+     * Builds the byte-identical system block.
      * <p>
-     * Mit Knowledge-Prefix: der geteilte Block, cachebar ueber alle Agents und Turns.
-     * Ohne Prefix (Subagent, der keinen Basiskontext braucht): eine feste Konstante.
-     * Beide Zweige sind deterministisch — die Byte-Identitaet innerhalb eines
-     * Zweigs ist die eigentliche Cache-Voraussetzung.
+     * With a knowledge prefix: the shared block, cacheable across all agents and turns.
+     * Without a prefix (subagent that needs no base context): a fixed constant.
+     * Both branches are deterministic — the byte-identity within one
+     * branch is the actual cache prerequisite.
      */
     private String buildSharedSystem() {
         if (knowledgePrefix == null || knowledgePrefix.isBlank()) {
@@ -342,9 +342,9 @@ public class AgentRunner {
     }
 
     /**
-     * Extrahiert TokenUsage aus der Response.
-     * Bevorzugt OpenAI-spezifische Metadaten, damit cachedTokens sichtbar
-     * werden — entscheidend für die Prefix-Cache-Sichtbarkeit.
+     * Extracts the TokenUsage from the response.
+     * Prefers OpenAI-specific metadata so that cachedTokens become visible
+     * — decisive for prefix-cache visibility.
      */
     private TokenUsage extractTokenUsage(ChatResponse response) {
         var metadata = response.metadata();
@@ -378,7 +378,7 @@ public class AgentRunner {
         }
     }
 
-    /** Protokolliert Aufruf einer einzelnen Tool-Funktion im ReAct Loop */
+    /** Logs the invocation of a single tool function in the ReAct loop */
     public record ToolCall(String toolName, String arguments, String result, int step, boolean success) {
         public java.util.Map<String, Object> toMap() {
             java.util.Map<String, Object> m = new java.util.LinkedHashMap<>();
@@ -392,12 +392,12 @@ public class AgentRunner {
     }
 
     /**
-     * Ergebnis eines Runner-Durchlaufs.
+     * Result of one runner pass.
      *
-     * @param requests echte Anzahl der {@code chatModel.chat(...)}-Aufrufe.
-     *                Bewusst gezaehlt statt geschaetzt: die Cache-Wirkung
-     *                skaliert mit K-1, und eine geschaetzte K wuerde genau die
-     *                Groesse verzerren, um die es geht.
+     * @param requests the actual number of {@code chatModel.chat(...)} calls.
+     *                Deliberately counted instead of estimated: the cache effect
+     *                scales with K-1, and an estimated K would distort exactly the
+     *                size it is all about.
      */
     public record RunResult(TokenUsage tokenUsage, String text, List<ToolCall> toolCalls, int requests) {
         public int inputTokens() {

@@ -7,8 +7,8 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * Baut aus einem TokenUsage eine flache Map für Agent-Ergebnisse/API-Antworten.
- * Erfasst bei OpenAI zusätzlich cachedTokens und reasoningTokens.
+ * Builds a flat map for agent results / API responses from a TokenUsage.
+ * For OpenAI it additionally captures cachedTokens and reasoningTokens.
  */
 final class TokenStatsMapper {
 

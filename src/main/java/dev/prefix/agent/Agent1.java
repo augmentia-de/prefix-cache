@@ -13,7 +13,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Agent1 — SHARED KNOWLEDGE PREFIX + beide Tools (analyzeDomain + defineTask).
+ * Agent1 — SHARED KNOWLEDGE PREFIX + both tools (analyzeDomain + defineTask).
  */
 @Component
 public class Agent1 implements Agent {
@@ -27,8 +27,8 @@ public class Agent1 implements Agent {
 
     @Override
     public String prompt() {
-        // ACHTUNG: Der finale Output muss die Labels "Domain:", "Task:" und
-        // "Connection:" enthalten — Agent1.parseResult() extrahiert genau diese.
+        // CAREFUL: The final output must contain the labels "Domain:", "Task:" and
+        // "Connection:" — Agent1.parseResult() extracts exactly these.
         return """
                 You are the knowledge-domain analyst for the Novaris prefix-cache system.
 
@@ -78,10 +78,10 @@ public class Agent1 implements Agent {
     }
 
     /**
-     * Werkzeuge, die VOR dem Handoff gelaufen sein müssen.
+     * Tools that MUST have run BEFORE the handoff.
      * <p>
-     * Ohne dieses Gate hat das Modell den Handoff als Abkuerzung benutzt und die
-     * Analyse uebersprungen — in 3 von 4 Antworten. Siehe {@link GatedToolExecutor}.
+     * Without this gate the model used the handoff as a shortcut and skipped
+     * the analysis — in 3 of 4 answers. See {@link GatedToolExecutor}.
      */
     private static final List<String> PREREQUISITES = List.of("analyzeDomain", "defineTask");
 
@@ -89,8 +89,8 @@ public class Agent1 implements Agent {
     public void execute(String userInput, WorkflowSessionState state) {
         log.info("[{}] Starting with shared knowledge + analyzeDomain + defineTask", name());
 
-        // Getrennte Gates pro Lauf: Agent1 macht zwei Laeufe, und der Zaehler
-        // des ersten darf den zweiten nicht erfuellt vorschiieben.
+        // Separate gate per run: Agent1 makes two runs, and the counter
+        // of the first must not count the second one as already met.
         ToolExecutor gatedRun1 = new GatedToolExecutor(executor, SubtaskHandoff.TOOL_NAME, PREREQUISITES);
         ToolExecutor gatedRun2 = new GatedToolExecutor(executor, SubtaskHandoff.TOOL_NAME, PREREQUISITES);
 
@@ -118,24 +118,24 @@ public class Agent1 implements Agent {
                 state.visibleHandoffs()
         );
 
-        // BEIDE Runs zusammenrechnen. Vorher wurden tool_calls und token_usage
-        // hier schlicht ueberschrieben, wodurch die API nur den zweiten Lauf
-        // meldete — Agent1 ist aber ein mehrstufiger Akteur und die Tokenbilanz
-        // eines Workflows ist ohne seinen ersten Lauf falsch.
+        // Add up BOTH runs. Previously tool_calls and token_usage were
+        // simply overwritten here, which made the API report only the second run
+        // — but Agent1 is a multi-step actor, and the token balance
+        // of a workflow is wrong without its first run.
         List<Object> allToolCalls = new ArrayList<>();
         result.toolCalls().stream().map(AgentRunner.ToolCall::toMap).forEach(allToolCalls::add);
         result2.toolCalls().stream().map(AgentRunner.ToolCall::toMap).forEach(allToolCalls::add);
         runData.put("tool_calls", allToolCalls);
         runData.put("token_usage", TokenStatsMapper.toMap(result.add(result2.tokenUsage()).tokenUsage()));
 
-        // Handoff uebernehmen — aus dem ZWEITEN Lauf, sonst aus dem ersten.
+        // Take over the handoff — from the SECOND run, otherwise from the first.
         //
-        // Der zweite Lauf haengt mit prompt() + "1" ein Zeichen an die
-        // Anweisung; das stoert das Modell gelegentlich so, dass es nach den
-        // Analyse-Tools mit Text endet statt mit dem Handoff. Gemessen auf
-        // space-bunny-free: Lauf 1 lieferte den Handoff, Lauf 2 nicht. Ohne
-        // diesen Fallback verliert agent1 seine komplette Uebergabe, und der
-        // Folgeagent bekommt eine leere Kette, die wie ein sauberer Lauf aussieht.
+        // The second run appends one character to the prompt
+        // with prompt() + "1"; that occasionally confuses the model so much that
+        // after the analysis tools it ends with text instead of the handoff.
+        // Measured on space-bunny-free: run 1 delivered the handoff, run 2 did
+        // not. Without this fallback agent1 loses its complete handoff, and the
+        // follow-up agent gets an empty chain that looks like a clean run.
         SubtaskHandoff handoff = HandoffSupport.extract(name(), result2);
         if (handoff == null) {
             handoff = HandoffSupport.extract(name(), result);

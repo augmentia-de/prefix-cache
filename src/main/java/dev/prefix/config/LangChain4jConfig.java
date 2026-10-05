@@ -16,15 +16,15 @@ import java.util.Map;
 import java.util.function.Supplier;
 
 /**
- * Konfiguriert den OpenAiChatModel mit Token-Nutzungssichtbarkeit.
+ * Configures the OpenAiChatModel with token usage visibility.
  * <p>
- * Verwendet OpenAI-spezifische Klassen (statt generischer LangChain4j-Schnittstellen),
- * damit Token-Verbrauch pro Request sichtbar wird: inputTokens, outputTokens,
+ * Uses OpenAI-specific classes (instead of the generic LangChain4j interfaces),
+ * so that token consumption per request becomes visible: inputTokens, outputTokens,
  * cachedTokens, totalTokens.
  * <p>
- * Stellt zwei {@link AgentRunner}-Varianten bereit: eine MIT Knowledge-Prefix
- * (byte-identischer, cachebarer Block) und eine OHNE (Subagenten, die den
- * Basiskontext nicht brauchen und ihn deshalb nicht bezahlen sollen).
+ * Provides two {@link AgentRunner} variants: one WITH knowledge prefix
+ * (byte-identical, cacheable block) and one WITHOUT (subagents that do not
+ * need the base context and therefore should not pay for it).
  */
 @Configuration
 public class LangChain4jConfig {
@@ -47,14 +47,14 @@ public class LangChain4jConfig {
     private Double temperature;
 
     /**
-     * Loest den Sticky-Routing-Header fuer eine baseUrl auf.
+     * Resolves the sticky routing header for a baseUrl.
      * <p>
-     * Bewusst als statische, seiteneffektfreie Methode: das ist eine
-     * Provider-Kapazitaetsaussage und gehoert getestet, nicht in eine
-     * Bean-Methode mit {@code @Value}-Feldern versteckt. {@code null}
-     * heisst "dieser Provider unterstuetzt kein Sticky Routing" — dann
-     * werden {@code session_id} und {@code prompt_cache_key} gar nicht erst
-     * gesendet (siehe {@link AgentRunner}).
+     * Deliberately a static, side-effect-free method: this is a
+     * provider capacity statement and belongs in tests, not hidden in a
+     * bean method with {@code @Value} fields. {@code null}
+     * means "this provider does not support sticky routing" — then
+     * {@code session_id} and {@code prompt_cache_key} are not sent
+     * at all (see {@link AgentRunner}).
      */
     static String stickyHeaderFor(String baseUrl) {
         if (baseUrl == null) return null;
@@ -66,8 +66,8 @@ public class LangChain4jConfig {
     }
 
     /**
-     * Erzeugt den OpenAiChatModel mit Prompt-Caching aktiviert.
-     * Das Caching wird über OpenAiChatRequestParameters gesetzt.
+     * Creates the OpenAiChatModel with prompt caching enabled.
+     * The caching is set via OpenAiChatRequestParameters.
      */
     @Bean
     public OpenAiChatModel openAiChatModel(KnowledgePrefixLoader knowledgeLoader, ChatExchangeFileLogger exchangeLogger) {
@@ -104,17 +104,17 @@ public class LangChain4jConfig {
     }
 
     /**
-     * Der Standard-Runner: mit Knowledge-Prefix und mit Sticky-Routing-Header.
+     * The standard runner: with knowledge prefix and with sticky routing header.
      * <p>
-     * Der Header wird hier bewusst DURCHGERECHT. Vorher wurde der 2-arg-Konstruktor
-     * benutzt, wodurch {@code headerKey} null blieb — das {@code x-session-id}-Header
-     * wurde dadurch nie gesetzt und die in der Praxis teuerste Cache-Bedingung
-     * (Routing-Stabilitaet, prefix-caching.md 5.2) war stillschweigend abgeschaltet,
-     * waehrend das Log-Statement weiter Sticky Routing behauptete.
+     * The header is deliberately PASSED THROUGH here. Previously the 2-arg constructor
+     * was used, which left {@code headerKey} null — the {@code x-session-id} header
+     * was therefore never set and the most expensive cache condition in practice
+     * (routing stability, prefix-caching.md 5.2) was silently switched off,
+     * while the log statement kept claiming sticky routing.
      * <p>
-     * Es gibt bewusst nur EINEN Runner-Bean. Der prefixlose Runner wird per
-     * {@link AgentRunner#withoutKnowledgeBase()} abgeleitet: ein zweiter Bean
-     * gleichen Typs wuerde die Constructor-Injektion mehrdeutig machen.
+     * There is deliberately only ONE runner bean. The prefix-less runner is derived via
+     * {@link AgentRunner#withoutKnowledgeBase()}: a second bean of the same
+     * type would make constructor injection ambiguous.
      */
     @Bean
     public AgentRunner agentRunner(ChatModel chatModel, KnowledgePrefixLoader knowledgeLoader) {

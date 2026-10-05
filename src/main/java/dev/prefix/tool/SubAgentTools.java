@@ -15,63 +15,63 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Subagenten hinter Tools — 1 Orchestrator, 3 Subagenten, 2 davon mit Basiskontext.
+ * Subagents behind tools — 1 orchestrator, 3 subagents, 2 of them with a base context.
  * <p>
- * Ein "Subagent" ist hier kein eigener Prozess, sondern ein <b>verschachtelter
- * {@code AgentRunner.run()}-Aufruf</b>: das Tool fuehrt im ReAct-Loop des
- * Orchestrators einen komplett eigenen ChatRequest aus. Damit ist die Frage
- * "woher bekommt der Subagent seinen Kontext" eine Architekturentscheidung
- * statt eines Zufalls, und genau darum geht es hier.
+ * A "subagent" is not a process of its own here, but a <b>nested
+ * {@code AgentRunner.run()} call</b>: the tool executes a completely separate ChatRequest
+ * inside the orchestrator's ReAct loop. That makes the question
+ * "where does the subagent get its context" an architectural decision
+ * instead of a matter of chance, and that is exactly what this is about.
  *
- * <h2>Die drei Subagenten</h2>
+ * <h2>The three subagents</h2>
  * <table border="1">
- *   <caption>Kontextbedarf und Ausfuehrungspfad</caption>
+ *   <caption>Context need and execution path</caption>
  *   <tr><th>Tool</th><th>Knowledge Base</th><th>Runner</th></tr>
- *   <tr><td>{@code lookupEvidence}</td><td>ja</td><td>{@code kbRunner}</td></tr>
- *   <tr><td>{@code crossCheck}</td><td>ja</td><td>{@code kbRunner}</td></tr>
- *   <tr><td>{@code renderSummary}</td><td><b>nein</b></td><td>{@code bareRunner}</td></tr>
+ *   <tr><td>{@code lookupEvidence}</td><td>yes</td><td>{@code kbRunner}</td></tr>
+ *   <tr><td>{@code crossCheck}</td><td>yes</td><td>{@code kbRunner}</td></tr>
+ *   <tr><td>{@code renderSummary}</td><td><b>no</b></td><td>{@code bareRunner}</td></tr>
  * </table>
  *
- * <h2>Warum das billig ist</h2>
- * Die beiden KB-Subagenten bekommen die Knowledge Base ueber ihren eigenen
- * System-Block. Sie ist byte-identisch mit dem des Orchestrators und mit dem
- * des jeweils anderen KB-Subagenten — also derselbe Cache-Block. Der Orchestrator
- * muss sie <b>nicht</b> in seinen Suffix schreiben, um sie weiterzugeben.
+ * <h2>Why this is cheap</h2>
+ * Both KB subagents receive the knowledge base via their own
+ * system block. It is byte-identical with the orchestrator's and with
+ * the other KB subagent's — so the same cache block. The orchestrator
+ * does <b>not</b> have to write it into its suffix in order to pass it on.
  * <p>
- * {@code renderSummary} bekommt sie absichtlich nicht. Es reichen die Findings der
- * beiden anderen. Gemessen: 728 statt 1732 Input-Tokens bei identischer Tool-Liste.
- * Ein fehlender Cache-Hit ist hier billiger als ein bezahlter.
+ * {@code renderSummary} deliberately does not get it. The findings of
+ * the other two suffice. Measured: 728 instead of 1732 input tokens with an identical tool list.
+ * A missing cache hit is cheaper here than a paid one.
  *
- * <h2>Die Negativprobe: {@link Mode#VIA_ARGUMENTS}</h2>
- * Hier landet die Knowledge Base in der <b>User-Message</b> des Subagenten,
- * also im dynamischen Suffix. Der System-Block bleibt klein und jeder Aufruf
- * zahlt die Daten neu: 0 Cache-Tokens bei ~1741 Input-Tokens. Gleiche Daten,
- * gleiche Tool-Liste, andere Position — und die Ersparnis verschwindet.
+ * <h2>The negative control: {@link Mode#VIA_ARGUMENTS}</h2>
+ * Here the knowledge base ends up in the subagent's <b>user message</b>,
+ * that is in the dynamic suffix. The system block stays small and every call
+ * pays for the data again: 0 cache tokens at ~1741 input tokens. Same data,
+ * same tool list, different position — and the saving disappears.
  *
- * <h2>Lebensdauer</h2>
- * Bewusst <b>kein Singleton</b>: pro Workflow-Aufruf wird eine neue Instanz
- * erzeugt. Sonst wuerden die Metriken zweier gleichzeitiger Laeufe
- * durcheinandergeraten (die Tool-Schnittstelle hat keinen Run-Kontext).
+ * <h2>Lifetime</h2>
+ * Deliberately <b>not a singleton</b>: a new instance is
+ * created per workflow call. Otherwise the metrics of two concurrent runs
+ * would get mixed up (the tool interface has no run context).
  */
 public class SubAgentTools implements ToolExecutor {
 
     private static final Logger log = LoggerFactory.getLogger(SubAgentTools.class);
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
-    /** Wie die Knowledge Base an die KB-Subagenten gelangt. */
+    /** How the knowledge base reaches the KB subagents. */
     public enum Mode {
-        /** System-Block — cachebar, das ist der Soll-Fall. */
+        /** System block — cacheable, this is the intended case. */
         VIA_PREFIX,
-        /** User-Message — nicht cachebar, die Negativprobe. */
+        /** User message — not cacheable, the negative control. */
         VIA_ARGUMENTS
     }
 
     /**
-     * Subagenten bekommen dieselbe Tool-Liste wie der Orchestrator (Byte-Identitaet
-     * des Tool-Blocks) — aber einen Executor, der jeden Tool-Call ablehnt.
+     * Subagents get the same tool list as the orchestrator (byte identity
+     * of the tool block) — but an executor that rejects every tool call.
      *
-     * So sind (a) die Tool-Spezifikationen identisch und (b) Rekursion strukturell
-     * unmoeglich. Die Engine hat zusaetzlich eine Tiefenwache.
+     * That way (a) the tool specifications are identical and (b) recursion is structurally
+     * impossible. The engine additionally has a depth guard.
      */
     private static final ToolExecutor NO_FURTHER_TOOLS =
             (toolName, args) -> "[UNREACHABLE] subagents must not dispatch tools";
@@ -81,7 +81,7 @@ public class SubAgentTools implements ToolExecutor {
     private final String knowledgeBaseText;
     private final Mode mode;
 
-    /** Reihenfolge = Ausfuehrungsreihenfolge = Reihenfolge der Tool-Calls. */
+    /** Order = execution order = order of the tool calls. */
     private final Map<String, SubAgentMetrics> metrics = new LinkedHashMap<>();
 
     public SubAgentTools(AgentRunner kbRunner,
@@ -105,9 +105,9 @@ public class SubAgentTools implements ToolExecutor {
     }
 
     /**
-     * Fuehrt einen Subagenten aus.
+     * Runs a subagent.
      *
-     * @param needsKnowledgeBase ob der Subagent den geteilten Prefix sehen darf
+     * @param needsKnowledgeBase whether the subagent may see the shared prefix
      */
     private String runKnowledgeAgent(String agentName, String prompt, String arguments, boolean needsKnowledgeBase) {
         String userInput = readInput(arguments);
@@ -117,11 +117,11 @@ public class SubAgentTools implements ToolExecutor {
         boolean usesPrefix = false;
 
         if (!needsKnowledgeBase) {
-            // renderSummary: weder Prefix noch Argumente. Der dynamische Tail
-            // enthaelt nur, was der Orchestrator an Findings uebergibt.
+            // renderSummary: neither prefix nor arguments. The dynamic tail
+            // contains only what the orchestrator hands over as findings.
             effectivePrompt = prompt + (findings.isBlank() ? "" : "\n\nFINDINGS FROM THE OTHER SUBAGENTS:\n" + findings);
         } else if (mode == Mode.VIA_ARGUMENTS) {
-            // Negativprobe: die Daten wandern in die User-Message.
+            // Negative control: the data moves into the user message.
             effectivePrompt = prompt
                     + "\n\nKNOWLEDGE BASE (passed as arguments — this part is NOT cacheable):\n"
                     + knowledgeBaseText;
@@ -131,9 +131,9 @@ public class SubAgentTools implements ToolExecutor {
 
         AgentRunner runner = needsKnowledgeBase ? kbRunner : bareRunner;
 
-        // Eigener Werkzeug-Satz, innerhalb der Subagent-Demo byte-identisch fuer
-        // Orchestrator und alle Subagenten. Bewusst NICHT getAll() — sonst kaemen
-        // die Analyse-Tools in die Subagent-Demo und umgekehrt.
+        // Own tool set, byte-identical for orchestrator and all subagents
+        // within the subagent demo. Deliberately NOT getAll() — otherwise the
+        // analysis tools would leak into the subagent demo and vice versa.
         List<ToolSpecification> toolSpecs = ToolProvider.getSubAgentTools();
 
         log.info("[{}] knowledgeBase={} path={} mode={}",
@@ -173,7 +173,7 @@ public class SubAgentTools implements ToolExecutor {
                 input > 0 ? String.format("%.1f%%", 100.0 * cached / input) : "n/a");
     }
 
-    /** Metriken aller ausgefuehrten Subagenten, in Ausfuehrungsreihenfolge. */
+    /** Metrics of all executed subagents, in execution order. */
     public List<SubAgentMetrics> metrics() {
         return new ArrayList<>(metrics.values());
     }
@@ -197,11 +197,11 @@ public class SubAgentTools implements ToolExecutor {
     }
 
     /**
-     * Metrik eines Subagenten. {@code hitPercent} ist der Anteil gecachter
-     * Input-Tokens — bei {@code renderSummary} bewusst 0, weil der Subagent den
-     * Prefix gar nicht erst bezieht und deshalb auch nichts zu cachen hat.
-     * {@code requests} sind echte Modell-Aufrufe, nicht Tool-Aufrufe: ein
-     * Subagent mit eigenem ReAct-Loop braucht mehr als einen.
+     * Metric of a subagent. {@code hitPercent} is the share of cached
+     * input tokens — deliberately 0 for {@code renderSummary}, because the subagent
+     * does not even obtain the prefix and therefore has nothing to cache.
+     * {@code requests} are real model calls, not tool calls: a
+     * subagent with its own ReAct loop needs more than one.
      */
     public record SubAgentMetrics(String agent,
                                   boolean knowledgeBaseRequired,
@@ -220,19 +220,19 @@ public class SubAgentTools implements ToolExecutor {
         }
 
         /**
-         * Input-Tokens, die NICHT aus dem Cache kamen und damit vollpreisig
-         * abgerechnet werden. Das ist die entscheidende Groesse — nicht
-         * {@link #hitPercent()}: die wird vom grossen, immer gecachten
-         * Tool-Block verwassert und faellt deshalb viel zu gut aus.
+         * Input tokens that did NOT come from the cache and are therefore billed
+         * at full price. This is the decisive size — not
+         * {@link #hitPercent()}: that one is diluted by the large, always cached
+         * tool block and therefore comes out far too good.
          */
         public int uncachedTokens() {
             return Math.max(0, inputTokens - cachedTokens);
         }
     }
 
-    // --- Subagent-Prompts ---------------------------------------------------------
-    // Statische Konstanten: der Subagent-Prompt gehoert in die User-Message
-    // (dynamischer Tail), nicht in den System-Block.
+    // --- Subagent prompts ---------------------------------------------------------
+    // Static constants: the subagent prompt belongs in the user message
+    // (dynamic tail), not in the system block.
 
     private static final String LOOKUP_PROMPT = """
             You are a retrieval subagent. You have full access to the SHARED KNOWLEDGE BASE

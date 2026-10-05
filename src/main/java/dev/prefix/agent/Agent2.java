@@ -11,10 +11,10 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Agent2 — SHARED KNOWLEDGE PREFIX + keine Analyse-Tools (Prompt-Filterung).
+ * Agent2 — SHARED KNOWLEDGE PREFIX + no analysis tools (prompt filtering).
  * <p>
- * Darf als einziges Werkzeug {@link SubtaskHandoff#TOOL_NAME} aufrufen, um das
- * Ergebnis strukturiert an Agent3 zu übergeben.
+ * May call {@link SubtaskHandoff#TOOL_NAME} as the only tool, in order to hand
+ * the result to Agent3 in a structured way.
  */
 @Component
 public class Agent2 implements Agent {
@@ -66,15 +66,15 @@ public class Agent2 implements Agent {
     public void execute(String userInput, WorkflowSessionState state) {
         log.info("[{}] Starting with shared knowledge, no analysis tools", name());
 
-        // Handoffs der VORHERIGEN Agenten kommen am Prompt-Ende an. Frueher stand
-        // hier ein auskommentierter Block mit einem Executor, der jeden Tool-Call
-        // ablehnt — der waere jetzt falsch: agent2 MUSS submit_subtask_summary
-        // aufrufen duerfen, sonst gaebe es keinen Handoff an agent3.
+        // Handoffs of PREVIOUS agents arrive at the end of the prompt. Previously
+        // there was a commented-out block here with an executor that rejected every
+        // tool call — that would be wrong now: agent2 MUST be allowed to call
+        // submit_subtask_summary, otherwise there would be no handoff to agent3.
         AgentRunner.RunResult result = runner.run(
                 name(),
                 prompt(),
                 userInput,
-                ToolProvider.getAll(),   // gleiche Liste wie Agent1 (byte-identisch!)
+                ToolProvider.getAll(),   // same list as Agent1 (byte-identical!)
                 executor,
                 state.getSessionId(),
                 state.visibleHandoffs()

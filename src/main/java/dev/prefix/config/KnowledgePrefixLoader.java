@@ -12,22 +12,22 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 /**
- * Lädt den gemeinsamen Knowledge-Prefix aus einer Textdatei.
+ * Loads the shared knowledge prefix from a text file.
  * <p>
- * Der Prefix enthält synthetische Fakten als "Wissen", das allen drei Agenten
- * im SystemMessage zur Verfügung steht. Jedes Mal wenn ein Agent einen Request
- * sendet wird dieser Prefix als byte-identischer Header (Block A) vorangestellt —
- * ermöglicht Provider-seitiges Prefix-Caching von OpenAI und anderen Modellen.
+ * The prefix contains synthetic facts as "knowledge" that is available to all three agents
+ * in the system message. Every time an agent sends a request
+ * this prefix is prepended as a byte-identical header (block A) —
+ * this enables provider-side prefix caching by OpenAI and other models.
  * <p>
- * Pattern aus quad-core: {@code PromptAssembler.buildInitialMessages()} tut exakt
- * dies: sysMsgBuilder.append(cachePrefix).append("\n\n").append(systemPrompt).
+ * Pattern from quad-core: {@code PromptAssembler.buildInitialMessages()} does exactly
+ * this: sysMsgBuilder.append(cachePrefix).append("\n\n").append(systemPrompt).
  */
 @Component
 public class KnowledgePrefixLoader {
 
     private static final Logger log = LoggerFactory.getLogger(KnowledgePrefixLoader.class);
 
-    /** Der geladene Prefix-Text — immer identisch über Requests hinweg */
+    /** The loaded prefix text — always identical across requests */
     private final String prefixContent;
 
     public KnowledgePrefixLoader(
@@ -45,28 +45,28 @@ public class KnowledgePrefixLoader {
     }
 
     /**
-     * Gibt den gesamten Prefix-Text zurück.
-     * Dieser Text wird als Block A in jedes SystemMessage geprepended.
+     * Returns the entire prefix text.
+     * This text is prepended as block A to every system message.
      */
     public String getPrefix() {
         return prefixContent;
     }
 
     /**
-     * Prüft ob der Prefix leer oder nicht initialisiert wurde.
+     * Checks whether the prefix is empty or was not initialized.
      */
     public boolean isEmpty() {
         return prefixContent == null || prefixContent.isBlank();
     }
 
     /**
-     * Liest eine Datei (classpath oder filesystem) und gibt ihren Inhalt als String zurück.
+     * Reads a file (classpath or filesystem) and returns its content as a String.
      */
     private String loadFileAsText(String path) throws IOException, URISyntaxException {
         Path filePath;
 
         if (path.startsWith("classpath:")) {
-            // classpath: prefix entfernen, dann als Resource auflösen
+            // remove the classpath: prefix, then resolve as a resource
             String resourcePath = path.substring("classpath:".length());
             var resource = Thread.currentThread().getContextClassLoader().getResource(resourcePath);
             if (resource == null) {

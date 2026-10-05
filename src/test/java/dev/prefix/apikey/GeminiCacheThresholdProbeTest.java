@@ -16,17 +16,17 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Misst die MINIMALE gemeinsame Prefix-Groesse, ab der der konfigurierte Backend
- * Prefix-Caching liefert (Schwelle). Fuer Gemini ist das Default-Minimum 4096 Tokens
- * (Flash 2.5: 1024) — unser Shared-Prefix (~1536 Tokens) liegt darunter, was Cache-Writes
- * verhindert. Pro Groesse S werden zwei Requests gesendet (System(S) + unterschiedliche
- * User-Tails); cached_tokens des Folge-Requests entscheidet, ob der Prefix-Block gecacht wurde.
+ * Measures the MINIMUM shared prefix size from which the configured backend
+ * provides prefix caching (threshold). For Gemini that default minimum is 4096 tokens
+ * (Flash 2.5: 1024) — our shared prefix (~1536 tokens) lies below it, which prevents cache writes.
+ * For each size S two requests are sent (System(S) + differing
+ * user tails); the cached_tokens of the follow-up request decide whether the prefix block was cached.
  * <p>
- * Messages werden genauso gebaut wie im Workflow (statische System-Message, kein session_id,
- * keine Tools). Das Java-API exponiert cache_write_tokens nicht — die write-Observation
- * erfolgt indirekt ueber cached_tokens des Folge-Requests.
+ * Messages are built exactly as in the workflow (static system message, no session_id,
+ * no tools). The Java API does not expose cache_write_tokens — the write observation
+ * happens indirectly via the cached_tokens of the follow-up request.
  * <p>
- * Ausfuehren (Model + baseUrl aus .env, z.B. Gemini): {@code
+ * Run (model + baseUrl from .env, e.g. Gemini): {@code
  * set -a; source .env; set +a; mvn test -Dgroups=measure -Dtest=GeminiCacheThresholdProbeTest}
  */
 @Tag("measure")
@@ -60,7 +60,7 @@ class GeminiCacheThresholdProbeTest {
             ResponsePair p1 = call(llm, baseUrl, sharedSystem, Q1);
             ResponsePair p2 = call(llm, baseUrl, sharedSystem, Q2);
 
-            boolean hit = p2.cachedTokens > 0;           // zweiter Request liest Prefix
+            boolean hit = p2.cachedTokens > 0;           // second request reads the prefix
             if (hit && threshold == null) {
                 threshold = target;
             }
@@ -69,13 +69,13 @@ class GeminiCacheThresholdProbeTest {
                     target, p1.promptTokens, p1.cachedTokens, p2.promptTokens, p2.cachedTokens, hit));
         }
 
-        System.out.println("=== Prefix-Cache-Schwellenmessung ===");
+        System.out.println("=== Prefix cache threshold measurement ===");
         System.out.println("backend: " + baseUrl + " | model: " + model);
         rows.forEach(System.out::println);
         System.out.println("=== RESULT ===");
         System.out.println(threshold != null
-                ? "Minimum cachebarer Shared-Prefix: ~" + threshold + " Tokens"
-                : "Kein Cache-Hit in diesem Sweep (kein Prefix-Caching oder Minimum > 9000)");
+                ? "Minimum cacheable shared prefix: ~" + threshold + " tokens"
+                : "No cache hit in this sweep (no prefix caching or minimum > 9000)");
     }
 
     private record ResponsePair(int promptTokens, int cachedTokens) {
@@ -86,8 +86,8 @@ class GeminiCacheThresholdProbeTest {
                 .messages(List.of(
                         new SystemMessage(system),
                         UserMessage.from(question)));
-        // Gleiche Routing-Praemisse wie im Workflow: session_id NUR fuer OpenRouter
-        // (Gemini/Google verwirft das Feld als 400). Mess-Session konstant => eine Sticky-Kette.
+        // Same routing premise as in the workflow: session_id ONLY for OpenRouter
+        // (Gemini/Google rejects the field as a 400). Constant measurement session => one sticky chain.
         if (baseUrl.contains("openrouter.ai")) {
             builder.parameters(OpenAiChatRequestParameters.builder()
                     .customParameters(Map.of("session_id", "measure-probe"))
@@ -100,7 +100,7 @@ class GeminiCacheThresholdProbeTest {
         return new ResponsePair(usage.inputTokenCount(), cached);
     }
 
-    /** Deterministischer Filler (~4 Zeichen/Token, alles statischer Text). */
+    /** Deterministic filler (~4 chars/token, all static text). */
     private static String buildFiller(int approxTokens) {
         int targetChars = approxTokens * 4;
         StringBuilder sb = new StringBuilder(targetChars + 64);

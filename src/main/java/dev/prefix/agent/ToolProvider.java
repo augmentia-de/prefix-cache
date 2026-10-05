@@ -9,71 +9,71 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Zentrale Tool-Registry.
+ * Central tool registry.
  *
- * <h2>Zwei Werkzeug-Sätze, nicht einer</h2>
- * {@link #getAll()} und {@link #getSubAgentTools()} sind getrennte, jeweils
- * fuer sich byte-identische Listen. Das ist <b>keine</b> Verletzung der
- * Cache-Invariante: die muss <i>innerhalb eines Workflows</i> gelten, nicht
- * ueber alle Experimente hinweg.
+ * <h2>Two tool sets, not one</h2>
+ * {@link #getAll()} and {@link #getSubAgentTools()} are separate lists, each
+ * byte-identical on its own. That is <b>not</b> a violation of the
+ * cache invariant: it must hold <i>within one workflow</i>, not
+ * across all experiments.
  * <p>
- * Der Grund fuer die Trennung ist die Zugangskontrolle. Sie erfolgt hier
- * <b>ausschliesslich ueber den Prompt</b> — jede Tool-Liste, die ein Agent
- * sieht, kann er auch aufrufen. Liegt ein Werkzeug in der Liste, kann das
- * Modell es auch benutzen, egal was der Prompt verbietet. Beobachtet in den
- * Exchange-Logs vom 2026-10-02: nach dem Ergaenzen der Subagent-Tools rief
- * agent1 im alten 3-Agenten-Workflow <code>lookupEvidence</code> und
- * <code>crossCheck</code> auf und bekam
- * {@code [ERROR] Unknown tool: lookupEvidence} zurueck — zwei von fuenf
- * erlaubten Tool-Iterationen fuer einen Fehler verbraucht.
+ * The reason for the separation is access control. It happens here
+ * <b>exclusively through the prompt</b> — every tool list an agent
+ * sees it can also call. If a tool is in the list, the
+ * model can use it too, no matter what the prompt forbids. Observed in the
+ * exchange logs from 2026-10-02: after adding the subagent tools, agent1
+ * called <code>lookupEvidence</code> and
+ * <code>crossCheck</code> in the old 3-agent workflow and got
+ * {@code [ERROR] Unknown tool: lookupEvidence} back — two of five
+ * permitted tool iterations burned on one error.
  *
- * <h2>Die Invariante</h2>
- * Innerhalb eines Workflows sehen <i>alle</i> Akteure dieselbe Liste:
- * Orchestrator und seine Subagenten teilen sich dadurch denselben Tool-Block.
- * Das ist auch der Grund, warum der Basiskontext nicht ueber die Tool-Liste
- * gesteuert wird, sondern ueber den ausfuehrenden {@link AgentRunner}.
+ * <h2>The invariant</h2>
+ * Within one workflow <i>all</i> actors see the same list:
+ * orchestrator and its subagents thereby share the same tool block.
+ * That is also the reason why the base context is not controlled via the tool list
+ * but via the executing {@link AgentRunner}.
  *
- * <h2>ACHTUNG beim Erweitern</h2>
- * Jede Aenderung an einer Liste aendert den serialisierten
- * {@code toolSpecifications}-Block und damit den cachebaren Prefix. Das ist kein
- * Fehler, aber ein einmaliger Kaltstart: Der erste Request danach meldet
- * zwingend {@code cached_tokens: 0} und schreibt den Block neu. Wer eine
- * Cache-Hit-Rate misst, muss den Lauf nach einer Tool-Erweiterung als
- * Kaltstart kennzeichnen, sonst zaehlt er ihn als Miss.
+ * <h2>CAREFUL when extending</h2>
+ * Any change to a list changes the serialized
+ * {@code toolSpecifications} block and thus the cacheable prefix. That is not a
+ * bug, but a one-time cold start: the first request afterwards
+ * necessarily reports {@code cached_tokens: 0} and rewrites the block. Anyone measuring a
+ * cache hit rate must mark the run after a tool extension as a
+ * cold start, otherwise it counts as a miss.
  */
 public class ToolProvider {
 
     /**
-     * IMMER GLEICHE Liste — Byte-Identitaet ueber alle Requests und Agents hinweg.
+     * ALWAYS THE SAME list — byte-identity across all requests and agents.
      */
     private static final List<ToolSpecification> ALL_TOOLS = buildAllTools();
 
     /**
-     * Subagent-Werkzeuge. Zweiter, ebenfalls byte-identischer Satz fuer die
-     * Subagent-Demo (siehe {@code SubAgentWorkflowService}).
+     * Subagent tools. A second, likewise byte-identical set for the
+     * subagent demo (see {@code SubAgentWorkflowService}).
      */
     private static final List<ToolSpecification> SUB_AGENT_TOOLS = buildSubAgentTools();
 
     // --- Public API ---
 
     /**
-     * Gibt die vollstaendige Liste aller Analyse-Tools zurueck.
-     * Diese Liste ist unveraenderlich und immer identisch.
+     * Returns the complete list of all analysis tools.
+     * This list is unmodifiable and always identical.
      */
     public static List<ToolSpecification> getAll() {
         return ALL_TOOLS;
     }
 
     /**
-     * Gibt die Subagent-Werkzeuge zurueck — von allen Akteuren der
-     * Subagent-Demo geteilt (Orchestrator und seine drei Subagenten).
+     * Returns the subagent tools — shared by all actors of the
+     * subagent demo (orchestrator and its three subagents).
      */
     public static List<ToolSpecification> getSubAgentTools() {
         return SUB_AGENT_TOOLS;
     }
 
     /**
-     * Prueft ob ein Tool mit dem gegebenen Namen existiert.
+     * Checks whether a tool with the given name exists.
      */
     public static boolean hasTool(String toolName) {
         return hasToolIn(ALL_TOOLS, toolName) || hasToolIn(SUB_AGENT_TOOLS, toolName);
@@ -84,12 +84,12 @@ public class ToolProvider {
     }
 
     /**
-     * Konstruiert die statische Tool-Liste beim Klassenladen.
-     * Alle hier definierten Tools sind in jedem ChatRequest enthalten.
+     * Constructs the static tool list at class load time.
+     * All tools defined here are contained in every ChatRequest.
      */
     private static List<ToolSpecification> buildAllTools() {
         return List.of(
-                // Tool 1: analyzeDomain — von Agent1 verwendbar
+                // Tool 1: analyzeDomain — usable by Agent1
                 ToolSpecification.builder()
                         .name("analyzeDomain")
                         .description("Extract the broader domain context from user input. "
@@ -100,7 +100,7 @@ public class ToolProvider {
                                 .build())
                         .build(),
 
-// Tool 2: defineTask — von Agent1 UND Agent3 verwendbar
+// Tool 2: defineTask — usable by Agent1 AND Agent3
                 ToolSpecification.builder()
                         .name("defineTask")
                         .description("Formulate the core task definition from user input. "
@@ -111,10 +111,10 @@ public class ToolProvider {
                                 .build())
                         .build(),
 
-                // Tool 3: submit_subtask_summary — strukturierte Übergabe an den Folgeagenten
-                // Kein Analyse-Werkzeug, sondern ein Protokoll-Werkzeug: jeder Agent
-                // ruft es GENAU EINMAL am Ende seiner Arbeit auf. Die Engine hängt
-                // die Argumente dem nächsten Agenten als ToolResultMessage an.
+                // Tool 3: submit_subtask_summary — structured handoff to the follow-up agent
+                // Not an analysis tool, but a protocol tool: every agent
+                // calls it EXACTLY ONCE at the end of its work. The engine appends
+                // the arguments to the next agent as a ToolResultMessage.
                 ToolSpecification.builder()
                         .name(SubtaskHandoff.TOOL_NAME)
                         .description("Submit your structured result for the next agent. Call it once, when your work is "
@@ -127,8 +127,8 @@ public class ToolProvider {
                                 .addStringProperty("status",
                                         "'success', 'partial' or 'failed' for this subagent")
                                 .addProperty("key_findings",
-                                        // LangChain4j 1.13 hat kein addStringArrayProperty,
-                                        // deshalb explizit: JsonArraySchema mit String-Items.
+                                        // LangChain4j 1.13 has no addStringArrayProperty,
+                                        // hence explicit: JsonArraySchema with string items.
                                         JsonArraySchema.builder()
                                                 .description("The concrete results, one concise entry each "
                                                         + "(exact names, numbers, years)")
@@ -143,18 +143,18 @@ public class ToolProvider {
     }
 
     /**
-     * Die drei Subagent-Werkzeuge. Jedes bildet einen Subagenten ab, der seinen
-     * EIGENEN ChatRequest an das Modell stellt — der Kontextbedarf ist
-     * unterschiedlich und wird NICHT ueber diese Liste gesteuert, sondern
-     * darueber, welcher {@link AgentRunner} den Subagenten ausfuehrt:
+     * The three subagent tools. Each one mirrors a subagent that places its
+     * OWN ChatRequest to the model — the context need differs
+     * and is NOT controlled via this list, but via
+     * which {@link AgentRunner} executes the subagent:
      * <pre>
-     *   lookupEvidence / crossCheck -&gt; Runner MIT Knowledge-Prefix
-     *   renderSummary               -&gt; Runner OHNE (spart ~1,1k Tokens)
+     *   lookupEvidence / crossCheck -&gt; runner WITH knowledge prefix
+     *   renderSummary               -&gt; runner WITHOUT (saves ~1.1k tokens)
      * </pre>
      */
     private static List<ToolSpecification> buildSubAgentTools() {
         return List.of(
-                // Subagent 1 — BENOETIGT die Knowledge Base
+                // Subagent 1 — REQUIRES the knowledge base
                 ToolSpecification.builder()
                         .name("lookupEvidence")
                         .description("Subagent with access to the shared knowledge base. "
@@ -166,7 +166,7 @@ public class ToolProvider {
                                 .build())
                         .build(),
 
-                // Subagent 2 — BENOETIGT die Knowledge Base
+                // Subagent 2 — REQUIRES the knowledge base
                 ToolSpecification.builder()
                         .name("crossCheck")
                         .description("Subagent with access to the shared knowledge base. "
@@ -178,7 +178,7 @@ public class ToolProvider {
                                 .build())
                         .build(),
 
-                // Subagent 3 — BENOETIGT KEINE Knowledge Base
+                // Subagent 3 — REQUIRES NO knowledge base
                 ToolSpecification.builder()
                         .name("renderSummary")
                         .description("Subagent WITHOUT access to the knowledge base. "

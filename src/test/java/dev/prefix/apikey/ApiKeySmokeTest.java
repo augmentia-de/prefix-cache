@@ -10,9 +10,9 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 
 /**
- * Smoke-Test: ein kurzer LLM-Call, um die API-Key / Modell-Konfiguration zu pruefen.
+ * Smoke test: a short LLM call to check the API key / model configuration.
  * <p>
- * API-Key, baseUrl und Modell kommen aus den Umgebungsvariablen (via .env). Ausfuehren:
+ * API key, baseUrl and model come from the environment variables (via .env). Run:
  * <pre>
  *   set -a; source .env; set +a; mvn -Dtest=ApiKeySmokeTest test
  * </pre>
@@ -46,6 +46,6 @@ class ApiKeySmokeTest {
         System.out.println("=== model: " + modelName + " / baseUrl: " + baseUrl + " ===");
 
         assertNotNull(answer);
-        assertFalse(answer.isBlank(), "Modellantwort darf nicht leer sein");
+        assertFalse(answer.isBlank(), "model answer must not be empty");
     }
 }

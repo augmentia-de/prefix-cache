@@ -8,16 +8,16 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Tests für ToolProvider — zentrale Tool-Registry.
+ * Tests for ToolProvider — central tool registry.
  */
 class ToolProviderTest {
 
     @Test
     void getAllReturnsAllTools() {
         List<ToolSpecification> tools = ToolProvider.getAll();
-        // 2 Analyse-Tools + das Handoff-Protokoll. Die Subagent-Werkzeuge liegen
-        // bewusst in einem getrennten Satz — sonst kaeme agent1 im alten Workflow
-        // an die Subagenten und verbrauchte Tool-Iterationen fuer
+        // 2 analysis tools + the handoff protocol. The subagent tools deliberately
+        // live in a separate set — otherwise agent1 in the old workflow would
+        // reach the subagents and burn tool iterations on
         // "[ERROR] Unknown tool".
         assertThat(tools).hasSize(3);
 
@@ -39,15 +39,15 @@ class ToolProviderTest {
         List<ToolSpecification> tools = ToolProvider.getAll();
         try {
             tools.add(null);
-            assertThat(false).isTrue(); // Sollte nicht erreicht werden
+            assertThat(false).isTrue(); // Should not be reached
         } catch (UnsupportedOperationException e) {
-            // Erwartet — Liste ist unveränderlich
+            // Expected — the list is immutable
         }
     }
 
     @Test
     void getAllIsConsistentAcrossCalls() {
-        // Die Liste muss bei jedem Aufruf gleich sein (byte-identisch für Cache!)
+        // The list must be the same on every call (byte-identical for the cache!)
         List<ToolSpecification> first = ToolProvider.getAll();
         List<ToolSpecification> second = ToolProvider.getAll();
 

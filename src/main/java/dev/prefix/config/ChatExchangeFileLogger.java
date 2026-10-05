@@ -33,16 +33,16 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Protokolliert jeden LLM-Request und jede Response in getrennte, zeitgestempelte Dateien
- * (Pendant zu quarkus.langchain4j.openai.log-requests/log-responses=true — aber als Dateien).
+ * Logs every LLM request and every response into separate, timestamped files
+ * (the counterpart of quarkus.langchain4j.openai.log-requests/log-responses=true — but as files).
  * <p>
- * Pro Model-Call entstehen zwei Dateien im Logverzeichnis:
+ * Per model call, two files are created in the log directory:
  * <ul>
- *   <li>{@code req-<timestamp>.log} — Request-Payload (model, messages, tools)</li>
- *   <li>{@code resp-<timestamp>.log} — Response-Payload (id, aiMessage, tokenUsage, finishReason)</li>
+ *   <li>{@code req-<timestamp>.log} — request payload (model, messages, tools)</li>
+ *   <li>{@code resp-<timestamp>.log} — response payload (id, aiMessage, tokenUsage, finishReason)</li>
  * </ul>
- * Die Anfrage legt den Timestamp als Korrelations-ID in den Listener-attributes ab; die
- * Response nutzt denselben Timestamp, damit req/resp zueinander passen.
+ * The request stores the timestamp as correlation ID in the listener attributes; the
+ * response uses the same timestamp so that req/resp match each other.
  */
 @Component
 public class ChatExchangeFileLogger implements ChatModelListener {
@@ -203,9 +203,9 @@ public class ChatExchangeFileLogger implements ChatModelListener {
         map.put("name", spec.name());
         if (spec.description() != null) map.put("description", spec.description());
         if (spec.parameters() != null) {
-            // Exakt wie LangChain4j auf der Leitung: JsonSchemaElementUtils.toMap()
-            // liefert eine LinkedHashMap in deterministischer Key-Reihenfolge und
-            // als echtes JSON-Objekt — NICHT als toString()-String.
+            // Exactly like LangChain4j on the wire: JsonSchemaElementUtils.toMap()
+            // returns a LinkedHashMap in deterministic key order and
+            // as a real JSON object — NOT as a toString() string.
             map.put("parameters", JsonSchemaElementUtils.toMap(spec.parameters()));
         }
         return map;

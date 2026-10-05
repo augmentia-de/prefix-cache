@@ -19,11 +19,11 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Guard fuer das Gemini-Caching-Requirement: die System-Message muss
- * (a) byte-identisch ueber alle Agents und alle ReAct-Turns sein und
- * (b) ausschliesslich den statischen SHARED KNOWLEDGE BASE Block enthalten —
- * KEINEN dynamischen Agenten-Prompt. Der Agenten-Prompt gehoert in die
- * USER-Message (immutable systemInstruction + statischer Prefix = cache-bar).
+ * Guard for the Gemini caching requirement: the system message must
+ * (a) be byte-identical across all agents and all ReAct turns and
+ * (b) contain exclusively the static SHARED KNOWLEDGE BASE block —
+ * NOT a single dynamic agent prompt. The agent prompt belongs in the
+ * user message (immutable systemInstruction + static prefix = cacheable).
  */
 class SystemMessageStaticTest {
 
@@ -66,7 +66,7 @@ class SystemMessageStaticTest {
             assertTrue(sys.contains("END OF SHARED KNOWLEDGE"));
         }
 
-        // byte-identisch zum statisch erwarteten Block (inkl. Agenten-PROMPT-frei)
+        // byte-identical to the statically expected block (incl. agent-PROMPT-free)
         assertEquals(sharedPrefix, firstSystem);
         assertFalse(firstSystem.contains("PROMPT_AGENT_ALPHA"), "agent prompt must NOT appear in system");
         assertFalse(firstSystem.contains("PROMPT_AGENT_BETA"), "agent prompt must NOT appear in system");

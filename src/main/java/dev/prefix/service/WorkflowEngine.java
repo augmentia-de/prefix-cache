@@ -12,16 +12,16 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Orchestrator — lädt den shared knowledge prefix und führt alle Agents sequentiell aus.
+ * Orchestrator — loads the shared knowledge prefix and runs all agents sequentially.
  * <p>
- * Jeder Agent ist ein {@link Agent}-Interface-Implementierung. Die WorkflowEngine weiß nichts
- * über spezifische Implementierungen — sie ruft nur #name(), #prompt() und #execute() auf.
+ * Each agent is an {@link Agent} interface implementation. The WorkflowEngine knows nothing
+ * about specific implementations — it only calls #name(), #prompt() and #execute().
  * <p>
- * Alle Agents erhalten denselben byte-identischen knowledgePrefix via AgentRunner:
+ * All agents receive the same byte-identical knowledgePrefix via AgentRunner:
  * <ul>
- *   <li>Agent1: Prefix + beide Tools (analyzeDomain + defineTask)</li>
- *   <li>Agent2: Prefix + keine Tools (nur Prompt-Filterung)</li>
- *   <li>Agent3: Prefix + optionales Tool (defineTask)</li>
+ *   <li>Agent1: prefix + both tools (analyzeDomain + defineTask)</li>
+ *   <li>Agent2: prefix + no tools (prompt filtering only)</li>
+ *   <li>Agent3: prefix + optional tool (defineTask)</li>
  * </ul>
  */
 @Service
@@ -29,7 +29,7 @@ public class WorkflowEngine {
 
     private static final Logger log = LoggerFactory.getLogger(WorkflowEngine.class);
 
-    /** Liste aller Agents — injiziert via Spring DI, sortiert nach Ausführungsreihenfolge */
+    /** List of all agents — injected via Spring DI, sorted by execution order */
     private final List<Agent> agents;
     private final KnowledgePrefixLoader knowledgeLoader;
 
@@ -43,7 +43,7 @@ public class WorkflowEngine {
     }
 
     /**
-     * Startet den vollständigen multi-agent workflow.
+     * Starts the complete multi-agent workflow.
      */
     public WorkflowSessionState execute(String sessionId, String userInput) {
         log.info("[WorkflowEngine] Starting workflow session={} with {} agents", sessionId, agents.size());
@@ -55,12 +55,12 @@ public class WorkflowEngine {
             log.info("[WorkflowEngine] Shared knowledge prefix loaded: {} bytes", knowledgeLoader.getPrefix().length());
         }
 
-        // Sequenzielle Ausfuehrung aller Agents.
+        // Sequential execution of all agents.
         //
-        // Die Handoffs werden mitgegeben, NICHT aus dem State gelesen: hier
-        // weiss die Engine, welcher Agent als welcher kommt. Ein Agent, der
-        // aus dem State laes, muesste sich auf Bestellung verlassen — und genau
-        // daran ist vorheriger Code gescheitert (es gab gar keine Weitergabe).
+        // The handoffs are passed along, NOT read from the state: here
+        // the engine knows which agent follows which. An agent that
+        // reads from the state would have to rely on ordering — and that is exactly
+        // where previous code failed (there was no handoff at all).
         List<SubtaskHandoff> accumulated = new ArrayList<>();
 
         for (Agent agent : agents) {
@@ -77,9 +77,9 @@ public class WorkflowEngine {
                 throw new RuntimeException("Agent " + agent.name() + " failed: " + e.getMessage(), e);
             }
 
-            // Nur tatsaechlich abgegebene Handoffs weitergeben. Ein Agent, der
-            // submit_subtask_summary vergessen hat, darf den Folgeagenten nicht
-            // mit einem leeren Handoff versorgen, der wie ein echtes Ergebnis aussieht.
+            // Only pass on handoffs that were actually submitted. An agent that
+            // forgot submit_subtask_summary must not supply the next agent
+            // with an empty handoff that looks like a real result.
             SubtaskHandoff own = state.handoffOf(agent.name());
             if (own != null) {
                 accumulated.add(own);
@@ -99,7 +99,7 @@ public class WorkflowEngine {
         return state;
     }
 
-    /** Kurze Beschreibung was ein Agent tut (für Logging) */
+    /** Short description of what an agent does (for logging) */
     private String describeAgent(Agent agent) {
         String p = agent.prompt().toLowerCase();
         if (p.contains("not use the tools")) return "(prefix, no analysis tools)";
@@ -107,7 +107,7 @@ public class WorkflowEngine {
         return "(prefix + synthesis)";
     }
 
-    /** Heuristisch Stage-Nummer aus dem Namen extrahieren für Sortierung */
+    /** Heuristically extract the stage number from the name for sorting */
     private int extractStageNumber(String name) {
         if (name == null) return 99;
         try {

@@ -8,7 +8,7 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Unit Tests für KnowledgePrefixLoader — KEIN Spring Kontext nötig.
+ * Unit tests for KnowledgePrefixLoader — NO Spring context needed.
  */
 class KnowledgePrefixLoaderTest {
 

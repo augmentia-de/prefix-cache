@@ -18,26 +18,26 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Sichert die Kontext-Politik der Subagent-Topologie ab:
- * 1 Orchestrator, 3 Subagenten ueber Tools, davon 2 mit Basiskontext.
+ * Locks down the context policy of the subagent topology:
+ * 1 orchestrator, 3 subagents via tools, 2 of them with a base context.
  * <p>
- * Geprueft wird nicht die Tool-Funktionalitaet, sondern <b>wo der Kontext
- * landet</b> — denn genau daran haengt die Cache-Wirkung:
+ * What is checked is not tool functionality but <b>where the context
+ * lands</b> — because the cache effect depends precisely on that:
  *
  * <ul>
- *   <li>KB-Subagent und Orchestrator teilen sich einen byte-identischen System-Block
- *       (derselbe Cache-Block),</li>
- *   <li>der KB-Subagent traegt KEINE Knowledge Base in seiner User-Message
- *       (sonst waere sie doppelt bezahlt — einmal im Prefix, einmal im Suffix),</li>
- *   <li>der Bare-Subagent bekommt den Prefix ueberhaupt nicht und bleibt damit
- *       unter der Cache-Schwelle,</li>
- *   <li>im args-Modus wandert die Knowledge Base in die User-Message — das ist
- *       die Negativprobe und darf hier nicht versehentlich wieder wegoptimiert werden.</li>
+ *   <li>KB subagent and orchestrator share a byte-identical system block
+ *       (the same cache block),</li>
+ *   <li>the KB subagent carries NO knowledge base in its user message
+ *       (otherwise it would be paid for twice — once in the prefix, once in the suffix),</li>
+ *   <li>the bare subagent does not get the prefix at all and therefore stays
+ *       below the cache threshold,</li>
+ *   <li>in args mode the knowledge base moves into the user message — that is
+ *       the negative control and must not accidentally be optimized away again here.</li>
  * </ul>
  *
- * Der Prefix selbst ist hier ein Platzhalter mit einem unterscheidbaren Marker
- * ("NOVARIS"); entscheidend ist die Gleichheit bzw. Ungleichheit der Strings,
- * nicht deren Inhalt.
+ * The prefix itself is a placeholder with a distinguishable marker
+ * ("NOVARIS"); what matters is whether the strings are equal or unequal,
+ * not their content.
  */
 class SubAgentPrefixPolicyTest {
 
@@ -83,7 +83,7 @@ class SubAgentPrefixPolicyTest {
         assertTrue(kb.hasKnowledgeBase(), "the standard runner must have the knowledge base");
         assertFalse(bare.hasKnowledgeBase(), "the derived runner must not");
 
-        // Geteiltes ChatModel, eigener System-Block — und beide stabil.
+        // Shared ChatModel, own system block — and both stable.
         ToolExecutor noop = (n, a) -> "r";
         kb.run("orchestrator", "P", "X", ToolProvider.getSubAgentTools(), noop, null);
         bare.run("subagent:renderSummary", "P", "X", ToolProvider.getSubAgentTools(), noop, null);
@@ -153,10 +153,10 @@ class SubAgentPrefixPolicyTest {
 
     @Test
     void subagentToolContractIsComplete() {
-        // renderSummary ist der einzige Subagent OHNE Knowledge Base — er bekommt
-        // stattdessen die Findings der anderen als Pflicht-Argument. Fehlt dieses
-        // Argument, kann der Orchestrator ihm nichts beibringen und der Subagent
-        // haette weder KB noch Input: ein stiller Totalausfall.
+        // renderSummary is the only subagent WITHOUT a knowledge base — instead it
+        // gets the findings of the others as a mandatory argument. If this
+        // argument is missing, the orchestrator cannot teach it anything and the
+        // subagent would have neither KB nor input: a silent total failure.
         var subTools = ToolProvider.getSubAgentTools();
         var render = subTools.stream()
                 .filter(t -> t.name().equals("renderSummary")).findFirst()
@@ -175,30 +175,29 @@ class SubAgentPrefixPolicyTest {
     }
 
     /**
-     * Regressionstest fuer einen real beobachteten Fehler.
+     * Regression test for an actually observed error.
      * <p>
-     * Solange die Zugangskontrolle ausschliesslich ueber den Prompt laeuft, kann
-     * jeder Agent jedes Tool in seiner Liste aufrufen. Nach dem Ergaenzen der
-     * Subagent-Tools in die geteilte Registry rief agent1 im alten 3-Agenten-
-     * Workflow <code>lookupEvidence</code> auf und bekam
-     * {@code [ERROR] Unknown tool} zurueck — zwei von fuenf erlaubten
-     * Tool-Iterationen fuer einen Fehler. Deshalb sind die beiden Saetze getrennt.
+     * As long as access control runs exclusively through the prompt, any agent can
+     * call any tool in its list. After the subagent tools were added to the shared
+     * registry, agent1 called {@code lookupEvidence} in the old 3-agent
+     * workflow and got {@code [ERROR] Unknown tool} back — two of five permitted
+     * tool iterations wasted on an error. That is why the two sets are kept separate.
      */
     @Test
     void subagentToolsAreNotVisibleToTheAnalysisWorkflow() {
         var analysis = ToolProvider.getAll().stream().map(ToolSpecification::name).toList();
         assertFalse(analysis.contains("lookupEvidence"),
-                "agent1/2/3 duerfen die Subagent-Tools nicht sehen — Prompt-only-Gating schuetzt nicht");
+                "agent1/2/3 must NOT see the subagent tools — prompt-only gating does not protect");
         assertFalse(analysis.contains("crossCheck"));
         assertFalse(analysis.contains("renderSummary"));
 
         var sub = ToolProvider.getSubAgentTools().stream().map(ToolSpecification::name).toList();
         assertFalse(sub.contains("analyzeDomain"),
-                "die Subagent-Demo braucht die Analyse-Tools nicht");
+                "the subagent demo does not need the analysis tools");
         assertFalse(sub.contains("defineTask"));
     }
 
-    /** Die Byte-Identitaet gilt je Satz, nicht nur gesamt. */
+    /** Byte-identity holds per set, not just overall. */
     @Test
     void eachToolSetIsStableAcrossCalls() {
         assertEquals(ToolProvider.getAll(), ToolProvider.getAll());
@@ -207,15 +206,15 @@ class SubAgentPrefixPolicyTest {
 
     @Test
     void nestingBeyondOneSubagentLevelIsRefused() {
-        // Modell, das bei den ersten `toolCallTurns` Aufrufen einen Tool-Call
-        // emittiert und danach eine fertige Antwort liefert. Ohne das emitierte
-        // der Executor der tieferen Ebene nie und die Wache wuerde nie ausgeloest.
+        // Model that emits a tool call on the first `toolCallTurns` invocations
+        // and then returns a finished answer. Without the emitted call the deeper
+        // level's executor would never run and the guard would never be triggered.
         //
-        // Erwartete Aufrufkette (2 dispatchende Ebenen noetig, damit die dritte
-        // erreicht wird):
-        //   call 0: orchestrator (Tiefe 1) -> Tool-Call -> level2
-        //   call 1: sub:sub       (Tiefe 2) -> Tool-Call -> level3
-        //   level3: will run() auf Tiefe 3 -> MUSS verweigert werden
+        // Expected call chain (2 dispatching levels needed so the third
+        // one is reached):
+        //   call 0: orchestrator (depth 1) -> tool call -> level2
+        //   call 1: sub:sub       (depth 2) -> tool call -> level3
+        //   level3: wants to run() at depth 3 -> MUST be refused
         final int toolCallTurns = 2;
         var req = dev.langchain4j.agent.tool.ToolExecutionRequest.builder()
                 .id("call-1").name("lookupEvidence").arguments("{\"input\":\"X\"}").build();
@@ -238,13 +237,13 @@ class SubAgentPrefixPolicyTest {
 
 AgentRunner outer = new AgentRunner(emitter, KB);
 
-        // Drei Ebenen. Orchestrator laeuft auf Tiefe 1, sein Subagent auf 2,
-        // und ein Subagent, der seinerseits dispatchen will, braucht Tiefe 3 —
-        // genau die muss die Wache stoppen.
+        // Three levels. The orchestrator runs at depth 1, its subagent at 2,
+        // and a subagent that wants to dispatch in turn needs depth 3 —
+        // exactly that is what the guard must stop.
         //
-        // Die Verweigerung wird eine Ebene tiefer von AgentRunner als
-        // Tool-Fehler geschluckt und ist von aussen nur schwer zu sehen.
-        // Deshalb wird hier direkt aufgezeichnet, statt auf einen Endtext zu pruefen.
+        // The refusal is swallowed one level deeper by AgentRunner as a
+        // tool error and is hard to see from outside. Therefore it is
+        // recorded directly here instead of checking an end text.
         var level3Ran = new java.util.concurrent.atomic.AtomicBoolean(false);
         var refusal = new java.util.concurrent.atomic.AtomicReference<String>();
 
@@ -271,13 +270,13 @@ AgentRunner outer = new AgentRunner(emitter, KB);
         assertNotNull(refusal.get(), "the third level must be refused with an IllegalStateException");
         assertTrue(refusal.get().contains("nesting"), "unexpected refusal message: " + refusal.get());
 
-        // Zwei Ebenen sind erlaubt und muessen tatsaechlich durchlaufen.
+        // Two levels are allowed and must actually be run through.
         assertEquals(1, result.toolCalls().size());
         assertTrue(result.toolCalls().get(0).success(),
                 "level 2 is a legal subagent level and must succeed");
 
-        // Der Tiefenzaehler muss nach dem Fehler zurueckgesetzt sein,
-        // sonst blockiert er den naechsten Request auf demselben Thread.
+        // The depth counter must be reset after the error,
+        // otherwise it blocks the next request on the same thread.
         assertDoesNotThrow(() -> outer.run("orchestrator", "ORCH_PROMPT", "input X",
                         ToolProvider.getSubAgentTools(), (n, a) -> "r", null),
                 "nesting depth must be released in a finally block");

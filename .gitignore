@@ -1,10 +1,10 @@
 # Environment secrets
 .env
-# .env.<name> sind Varianten derselben Sache (z.B. .env.openrouter) und
-# enthalten ebenfalls echte Keys. Das Muster muss .env.* sein — ein
-# nacktes ".env" trifft nur den exakten Dateinamen.
+# .env.<name> are variants of the same thing (e.g. .env.openrouter) and
+# contain real keys as well. The pattern has to be .env.* — a bare
+# ".env" only matches the exact filename.
 .env.*
-# ...die Vorlage ist ausnahmsweise kein Secret.
+# ...the template is, by exception, not a secret.
 !.env.example
 
 # IDE

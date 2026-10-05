@@ -9,42 +9,42 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Strukturierte Übergabe von einem Agenten an den nächsten.
+ * Structured handoff from one agent to the next.
  * <p>
- * Ein Agent beendet seine Arbeit nicht mit Fließtext, sondern ruft das Werkzeug
- * {@link #TOOL_NAME} auf. Die Engine nimmt die Argumente entgegen und hängt sie
- * dem Folgeagenten als eigene Nachricht am <b>Ende</b> seines Verlaufs an.
+ * An agent does not end its work with prose, but calls the tool
+ * {@link #TOOL_NAME}. The engine accepts the arguments and appends them
+ * to the follow-up agent as its own message at the <b>end</b> of its history.
  *
- * <h2>Warum als Werkzeug und nicht als Text</h2>
+ * <h2>Why a tool and not text</h2>
  * <ul>
- *   <li><b>Struktur.</b> Der Folgeagent liest Felder, statt Prosa zu parsen.</li>
- *   <li><b>Länge.</b> Das Schema begrenzt den Umfang; unstrukturierte Antworten
- *       werden sonst tendenziell länger und kosten Tokens im dynamischen Suffix.</li>
- *   <li><b>Determinismus.</b> Feste Feldreihenfolge statt Modell-Auswahl der Reihenfolge.</li>
+ *   <li><b>Structure.</b> The follow-up agent reads fields instead of parsing prose.</li>
+ *   <li><b>Length.</b> The schema limits the scope; unstructured answers
+ *       tend to be longer otherwise and cost tokens in the dynamic suffix.</li>
+ *   <li><b>Determinism.</b> Fixed field order instead of the model choosing the order.</li>
  * </ul>
  *
- * <h2>Was das Schema ausdrücklich NICHT leistet</h2>
- * Der Cache-Schutz kommt <b>nicht</b> vom Schema, sondern von der Position:
- * der Handoff wird ans <b>Ende</b> der Message-Liste gehängt, und weil kausale
- * Attention nur auf Token zurueckblickt, bleibt alles davor cachebar — bei
- * strukturiertem und bei unstrukturiertem Ergebnis gleichermassen. Die
- * eigentliche Gefahr ist die Umkehrung: rendert man den Handoff in den
- * System-Block, ist der gesamte Prefix dahinter wertlos. Davor schuetzt kein
- * JSON-Schema, nur die Position.
+ * <h2>What the schema explicitly does NOT deliver</h2>
+ * The cache protection comes <b>not</b> from the schema, but from the position:
+ * the handoff is appended to the <b>end</b> of the message list, and because causal
+ * attention only looks back at tokens, everything in front of it stays cacheable — for a
+ * structured and for an unstructured result alike. The
+ * real danger is the reverse: if you render the handoff into the
+ * system block, the entire prefix behind it is worthless. No
+ * JSON schema protects against that, only the position does.
  *
- * <h2>Warum keine ToolResultMessage</h2>
- * Die Übergabe wird bewusst als <b>UserMessage</b> transportiert, nicht als
- * {@code role: "tool"}. Eine Tool-Nachricht ohne vorangehenden
- * {@code assistant}-Tool-Call ist verwaist und damit schema-widrig — der
- * openCode-Zen-Gateway lehnt genau das mit
- * {@code 400 invalid_request} ab, während OpenRouter/DeepSeek es tolerieren.
+ * <h2>Why no ToolResultMessage</h2>
+ * The handoff is deliberately transported as a <b>UserMessage</b>, not as
+ * {@code role: "tool"}. A tool message without a preceding
+ * {@code assistant} tool call is orphaned and thus schema-violating — the
+ * openCode Zen gateway rejects exactly that with
+ * {@code 400 invalid_request}, while OpenRouter/DeepSeek tolerates it.
  *
- * <h2>Kanonische Serialisierung</h2>
- * {@link #renderAsMessage(String)} ist byte-deterministisch: feste
- * Schluesselreihenfolge ({@link LinkedHashMap}), Findings in der vom Modell
- * gelieferten Reihenfolge, keine Zeitstempel. Das ist Teil der Cache-Invariante —
- * ein JSON, dessen Schluesselreihenfolge zwischen zwei Laeufen schwankt,
- * invalidiert den Prefix.
+ * <h2>Canonical serialization</h2>
+ * {@link #renderAsMessage(String)} is byte-deterministic: fixed
+ * key order ({@link LinkedHashMap}), findings in the order delivered by the model,
+ * no timestamps. That is part of the cache invariant —
+ * JSON whose key order fluctuates between two runs
+ * invalidates the prefix.
  */
 public record SubtaskHandoff(String agent,
                              String status,
@@ -52,28 +52,28 @@ public record SubtaskHandoff(String agent,
                              String nextActionRecommendation,
                              String rawJson) {
 
-    /** Name des Werkzeugs, mit dem ein Agent seinen Handoff abgibt. */
+    /** Name of the tool with which an agent hands in its handoff. */
     public static final String TOOL_NAME = "submit_subtask_summary";
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     /**
-     * Erzeugt eine deterministische Tool-Call-ID fuer Logs und Korrelation.
+     * Produces a deterministic tool call ID for logs and correlation.
      * <p>
-     * Nicht mehr Teil der Message: die Uebergabe ist eine UserMessage, es gibt
-     * also keinen verwaisten {@code tool_call_id} mehr, auf den sich eine ID
-     * beziehen muesste. Fuer die Zuordnung im Log bleibt sie nuetzlich.
+     * No longer part of the message: the handoff is a UserMessage, so there is
+     * no orphaned {@code tool_call_id} left that an ID would have to refer to.
+     * For the mapping in the log it is still useful.
      */
     public static String toolCallId(String agent) {
         return "handoff-" + agent;
     }
 
     /**
-     * Der Inhalt, der als eigene Nachricht angehaengt wird.
+     * The content that is appended as its own message.
      * <p>
-     * Feste Schluesselreihenfolge, keine Zusatzfelder. Der {@code agent}-Name steht
-     * bewusst NICHT im JSON, weil er schon in der Ueberschrift steht und der
-     * Folgeagent die Zuordnung darueber sieht.
+     * Fixed key order, no extra fields. The {@code agent} name deliberately
+     * does NOT appear in the JSON, because it is already in the heading and the
+     * follow-up agent sees the assignment from it.
      */
     public String toToolResult() {
         Map<String, Object> m = new LinkedHashMap<>();
@@ -84,37 +84,37 @@ public record SubtaskHandoff(String agent,
         try {
             return MAPPER.writeValueAsString(m);
         } catch (Exception e) {
-            // Darf nicht passieren: die Map ist serialisierbar. Wenn doch, ist
-            // ein leerer, aber stabiler Inhalt besser als eine Exception mitten
-            // im Workflow.
+            // Must not happen: the map is serializable. If it does, empty but
+            // stable content is better than an exception right
+            // in the middle of the workflow.
             return "{\"status\":\"error\",\"key_findings\":[],"
                     + "\"next_action_recommendation\":\"\"}";
         }
     }
 
     /**
-     * Die vollstaendige Nachricht, die dem Folgeagenten angehaengt wird.
+     * The complete message that is appended to the follow-up agent.
      * <p>
-     * Byte-deterministisch: feste Ueberschrift, kanonisches JSON, keine
-     * Zeitstempel und keine Zufallswerte. Genau das macht sie fuer den
-     * Prefix-Cache unschaedlich — waere sie es nicht, wuerde jeder Lauf den
-     * gecachten Bereich dahinter invalidieren.
+     * Byte-deterministic: fixed heading, canonical JSON, no
+     * timestamps and no random values. Precisely that makes it harmless
+     * for the prefix cache — otherwise every run would invalidate the
+     * cached region behind it.
      */
     public static String renderAsMessage(String agent, String canonicalJson) {
         return "## HANDOFF FROM " + agent + " (" + TOOL_NAME + ") ##\n" + canonicalJson;
     }
 
-    /** Wie {@link #renderAsMessage(String, String)}, fuer dieses Handoff. */
+    /** Like {@link #renderAsMessage(String, String)}, for this handoff. */
     public String renderAsMessage() {
         return renderAsMessage(agent, toToolResult());
     }
 
     /**
-     * Parst die Tool-Argumente eines Handoff-Aufrufs.
+     * Parses the tool arguments of a handoff call.
      * <p>
-     * Tolerant gegen Teil-Mengen: ein Modell, das {@code next_action_recommendation}
-     * weglässt, ist kein Grund, den Workflow abzubrechen — das Feld wird leer
-     * gefuellt, damit das Ergebnis weiterhin schema-konform serialisiert.
+     * Tolerant of subsets: a model that omits {@code next_action_recommendation}
+     * is no reason to abort the workflow — the field is filled
+     * empty so that the result still serializes in a schema-conformant way.
      */
     public static SubtaskHandoff from(String agent, String arguments) {
         String status = "";
@@ -130,13 +130,13 @@ public record SubtaskHandoff(String agent,
                 arr.forEach(n -> findings.add(n.asText("")));
             }
         } catch (Exception e) {
-            // Rohes JSON behalten: es ist besser, die Original-Argumente zu
-            // sehen als sie zu verlieren.
+            // Keep the raw JSON: it is better to see the original arguments
+            // than to lose them.
         }
         return new SubtaskHandoff(agent, status, List.copyOf(findings), next, raw);
     }
 
-    /** Kurze, fluss-taugliche Zusammenfassung fuer Logs. */
+    /** Short summary suitable for logs. */
     @Override
     public String toString() {
         return "SubtaskHandoff[" + agent + " status=" + status

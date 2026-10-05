@@ -14,22 +14,22 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * Ein Orchestrator, drei Subagenten ueber Tools — zwei davon mit Basiskontext.
+ * One orchestrator, three subagents via tools — two of them with base context.
  * <p>
- * Bewusst <b>kein</b> {@code Agent}-Interface und nicht Teil von
- * {@link WorkflowEngine}: diese Topologie darf die bestehende 3-Agenten-Sequenz
- * nicht veraendern, weil sie deren Messwerte als Vergleichsbasis dient. Ein
- * eigener Pfad haelt beide Laeufe nebeneinander vergleichbar.
+ * Deliberately <b>no</b> {@code Agent} interface and not part of
+ * {@link WorkflowEngine}: this topology must not change the existing 3-agent sequence
+ * because its measurements serve as the baseline. A
+ * separate path keeps both runs comparable side by side.
  *
- * <h2>Request-Bilanz</h2>
+ * <h2>Request balance</h2>
  * <pre>
- *   orchestrator turn 1  System = P (full)          -> schreibt den Cache-Block
- *   lookupEvidence      System = P (byte-identisch) -> HIT
- *   crossCheck          System = P (byte-identisch) -> HIT
- *   renderSummary       System = P' (kurz)          -> eigener, winziger Block
- *   orchestrator turn 2  System = P (byte-identisch) -> HIT
+ *   orchestrator turn 1  System = P (full)          -> writes the cache block
+ *   lookupEvidence      System = P (byte-identical) -> HIT
+ *   crossCheck          System = P (byte-identical) -> HIT
+ *   renderSummary       System = P' (short)          -> own, tiny block
+ *   orchestrator turn 2  System = P (byte-identical) -> HIT
  * </pre>
- * K = 5, davon 4 mit dem geteilten Prefix.
+ * K = 5, of which 4 with the shared prefix.
  */
 @Service
 public class SubAgentWorkflowService {
@@ -43,17 +43,17 @@ public class SubAgentWorkflowService {
     public SubAgentWorkflowService(AgentRunner kbRunner,
                                    KnowledgePrefixLoader knowledgeLoader) {
         this.kbRunner = kbRunner;
-        // Abgeleitet statt injiziert — siehe AgentRunner#withoutKnowledgeBase().
+        // Derived instead of injected — see AgentRunner#withoutKnowledgeBase().
         this.bareRunner = kbRunner.withoutKnowledgeBase();
         this.knowledgeLoader = knowledgeLoader;
     }
 
     /**
-     * Fuehrt einen Orchestrator-Lauf mit drei Tool-Subagenten aus.
+     * Runs an orchestrator run with three tool subagents.
      *
-     * @param mode wie die Knowledge Base an die KB-Subagenten gelangt —
-     *             {@link SubAgentTools.Mode#VIA_PREFIX} (Soll-Fall) oder
-     *             {@link SubAgentTools.Mode#VIA_ARGUMENTS} (Negativprobe)
+     * @param mode how the knowledge base reaches the KB subagents —
+     *             {@link SubAgentTools.Mode#VIA_PREFIX} (intended case) or
+     *             {@link SubAgentTools.Mode#VIA_ARGUMENTS} (negative control)
      */
     public Map<String, Object> execute(String userInput, SubAgentTools.Mode mode) {
         String sessionId = UUID.randomUUID().toString();
@@ -61,8 +61,8 @@ public class SubAgentWorkflowService {
 
         log.info("[SubAgentWorkflow] mode={} session={}", mode, sessionId);
 
-        // Pro Lauf eine frische Instanz — sonst wuerden die Metriken
-        // konkurrierender Laeufe durcheinandergeraten.
+        // A fresh instance per run — otherwise the metrics
+        // of concurrent runs would get mixed up.
         SubAgentTools subAgents = new SubAgentTools(
                 kbRunner, bareRunner, knowledgeLoader.getPrefix(), mode);
 
@@ -118,8 +118,8 @@ public class SubAgentWorkflowService {
         totals.put("hit_percent", totalInput > 0
                 ? Math.round(1000.0 * totalCached / totalInput) / 10.0
                 : 0.0);
-        // ECHTE Modell-Aufrufe, nicht geschaetzt. Die Cache-Wirkung skaliert
-        // mit K-1; eine geschaetzte K verzerrt genau die Groesse, um die es geht.
+        // REAL model calls, not estimated. The cache effect scales
+        // with K-1; an estimated K distorts exactly the size that matters.
         totals.put("requests", orchestrator.requests() + subRequests);
 
         Map<String, Object> result = new LinkedHashMap<>();
@@ -140,11 +140,11 @@ public class SubAgentWorkflowService {
     }
 
     /**
-     * Der Orchestrator-Prompt.
+     * The orchestrator prompt.
      * <p>
-     * Gehoert bewusst in die User-Message: er ist pro Lauf dynamisch
-     * (nennt die konkrete Frage) und wuerde im System-Block den Cache
-     * invalidieren. Der System-Block bleibt der byte-identische Prefix.
+     * Deliberately belongs in the user message: it is dynamic per run
+     * (it names the concrete question) and would invalidate the cache in the system block.
+     * The system block remains the byte-identical prefix.
      */
     private static final String ORCHESTRATOR_PROMPT = """
             You are the orchestrator of a multi-agent workflow. You do not do the work

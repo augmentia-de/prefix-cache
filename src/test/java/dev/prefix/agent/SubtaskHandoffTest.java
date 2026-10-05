@@ -19,12 +19,12 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Sichert die strukturierte Agenten-Übergabe ab: agent1 → agent2 → agent3.
+ * Locks down the structured agent handoff: agent1 → agent2 → agent3.
  *
- * <p>Der Kern ist eine Position, kein Format. Geprüft wird, dass der Handoff
- * ans <b>Ende</b> der Message-Liste wandert und den cachebaren Prefix weder
- * verändert noch davor wächst — denn nur so bleibt der Cache-Hit erhalten.
- * Ein JSON-Schema allein würde das nicht leisten.
+ * <p>The core is a position, not a format. What is checked is that the handoff
+ * migrates to the <b>end</b> of the message list and neither modifies the
+ * cacheable prefix nor grows in front of it — because only that way the cache
+ * hit is preserved. A JSON schema alone would not achieve that.
  */
 class SubtaskHandoffTest {
 
@@ -56,10 +56,10 @@ class SubtaskHandoffTest {
         AgentRunner runner = new AgentRunner(model, KB);
         ToolExecutor noop = (n, a) -> "r";
 
-        // DERSELBE Agent, einmal ohne und einmal mit Vorgänger-Handoff.
-        // Nur so laesst sich "der Handoff veraendert den Prefix nicht" pruefen —
-        // ein Vergleich zweier verschiedener Agents wuerde an deren
-        // unterschiedlichen Prompts scheitern statt an der Handoff-Logik.
+        // The SAME agent, once without and once with a predecessor handoff.
+        // Only that way can "the handoff does not change the prefix" be checked —
+        // a comparison of two different agents would fail on their
+        // differing prompts instead of on the handoff logic.
         runner.run("agent2", "P2", "input X", ToolProvider.getAll(), noop, "wf-1");
         runner.run("agent2", "P2", "input X", ToolProvider.getAll(), noop, "wf-1",
                 List.of(handoff("agent1", "geography", "Mount Thorne 3241 m")));
@@ -68,30 +68,30 @@ class SubtaskHandoffTest {
         ChatRequest withoutPrior = model.requests.get(0);
         ChatRequest withPrior = model.requests.get(1);
 
-        // (1) Der System-Block bleibt byte-identisch — Kern der Cache-Invariante.
+        // (1) The system block stays byte-identical — the core of the cache invariant.
         assertEquals(((SystemMessage) withoutPrior.messages().get(0)).text(),
                 ((SystemMessage) withPrior.messages().get(0)).text(),
                 "handoffs must never touch the system block");
 
-        // Der Runner haengt die AiMessage des Modells an den Verlauf an. Sie
-        // gehoert NICHT zur eingehenden History und darf deshalb nicht mit
-        // verglichen werden — sonst vergleicht man den Handoff mit der Antwort.
+        // The runner appends the model's AiMessage to the conversation history. It
+        // does NOT belong to the incoming history and must therefore not be
+        // compared — otherwise one compares the handoff with the answer.
         int incoming = withoutPrior.messages().size() - 1;
 
-        // (2) Genau eine Nachricht wurde angehaengt.
+        // (2) Exactly one message was appended.
         assertEquals(withoutPrior.messages().size(), withPrior.messages().size() - 1,
                 "exactly one message is appended");
 
-        // (3) Alle eingehenden Nachrichten sind unveraendert: der cachebare
-        //     Prefix waechst nicht, er bleibt byte-identisch.
+        // (3) All incoming messages are unchanged: the cacheable
+        //     prefix does not grow, it stays byte-identical.
         for (int i = 0; i < incoming; i++) {
             assertEquals(withoutPrior.messages().get(i), withPrior.messages().get(i),
                     "incoming message " + i + " must be untouched by the handoff");
         }
 
-        // (4) Der Handoff steht am Ende der eingehenden History. Die letzte
-        //     Nachricht der ausgehenden ist die AiMessage des Modells — die kann
-        //     der Runner nicht kontrollieren, der Handoff schon.
+        // (4) The handoff is at the end of the incoming history. The last
+        //     outgoing message is the model's AiMessage — that the runner
+        //     cannot control, the handoff can.
         ChatMessage lastInitial = withPrior.messages().get(withPrior.messages().size() - 2);
         assertInstanceOf(UserMessage.class, lastInitial,
                 "the handoff is transported as a UserMessage, not as an orphan role=tool");
@@ -107,13 +107,13 @@ class SubtaskHandoffTest {
 
     @Test
     void handoffPayloadIsByteDeterministic() {
-        // Flimmernde Schluesselreihenfolge waere selbst ein Cache-Buster: der
-        // Handoff ist Teil der serialisierten Messages.
+        // Flickering key order would itself be a cache buster: the
+        // handoff is part of the serialized messages.
         String a = handoff("agent1", "x", "y").toToolResult();
         String b = handoff("agent1", "x", "y").toToolResult();
         assertEquals(a, b);
 
-        // Reihenfolge der Findings ist Teil des Inhalts und bleibt erhalten.
+        // The order of the findings is part of the content and is preserved.
         assertNotEquals(handoff("agent1", "y", "x").toToolResult(), a,
                 "finding order is content, not formatting");
     }
@@ -129,15 +129,15 @@ class SubtaskHandoffTest {
 
     @Test
     void toolCallIdIsStablePerAgent() {
-        // Zufaellige IDs wuerden den Prefix bei jedem Lauf verfaelschen.
+        // Random IDs would falsify the prefix on every run.
         assertEquals(SubtaskHandoff.toolCallId("agent1"), SubtaskHandoff.toolCallId("agent1"));
         assertNotEquals(SubtaskHandoff.toolCallId("agent1"), SubtaskHandoff.toolCallId("agent2"));
     }
 
     @Test
     void parsingIsTolerantOfPartialToolArguments() {
-        // Ein Modell, das ein Feld weglässt, darf den Workflow nicht abbrechen —
-        // aber der Handoff muss trotzdem schema-konform serialisieren.
+        // A model that omits a field must not abort the workflow —
+        // but the handoff must still serialize schema-conform.
         SubtaskHandoff partial = SubtaskHandoff.from("agent1",
                 "{\"status\":\"partial\",\"key_findings\":[\"only one\"]}");
         assertEquals("partial", partial.status());
@@ -155,7 +155,7 @@ class SubtaskHandoffTest {
         runner.run("agent3", "P3", "input X", ToolProvider.getAll(), noop, "wf-1",
                 List.of(handoff("agent1", "a1"), handoff("agent2", "a2")));
 
-        // system + 2 user + 2 handoffs + die AiMessage des Modells
+        // system + 2 user + 2 handoffs + the model's AiMessage
         List<ChatMessage> msgs = model.requests.get(0).messages();
         assertEquals(6, msgs.size(), "system + 2 user + 2 handoffs + model reply");
 
@@ -165,9 +165,9 @@ class SubtaskHandoffTest {
 
     @Test
     void handoffIsNotOfferedToTheSubagentDemo() {
-        // Die Subagent-Demo hat einen eigenen Werkzeug-Satz. Waere das
-        // Handoff-Werkzeug auch dort sichtbar, koennte ein Subagent einen
-        // Handoff abgeben, den niemand entgegennimmt.
+        // The subagent demo has its own tool list. If the
+        // handoff tool were visible there too, a subagent could hand in
+        // a handoff that nobody accepts.
         var subTools = ToolProvider.getSubAgentTools().stream()
                 .map(ToolSpecification::name).toList();
         assertFalse(subTools.contains(SubtaskHandoff.TOOL_NAME),
@@ -181,12 +181,12 @@ class SubtaskHandoffTest {
     }
 
     /**
-     * Regressionstest fuer einen real beobachteten 400er.
+     * Regression test for an actually observed 400.
      * <p>
-     * Mit {@code role: "tool"} brach der openCode-Zen-Gateway mit
-     * {@code 400 invalid_request} ab, waehrend OpenRouter/DeepSeek dieselbe
-     * Nachricht akzeptierte — verwaiste Tool-Nachrichten sind schema-widrig und
-     * Provider sind sich uneinig. Hier wird verhindert, dass sie zurueckkommen.
+     * With {@code role: "tool"} the openCode Zen gateway aborted with
+     * {@code 400 invalid_request}, while OpenRouter/DeepSeek accepted the same
+     * message — orphaned tool messages are schema-invalid and
+     * providers disagree. Here we prevent them from coming back.
      */
     @Test
     void handoffIsNeverSentAsAnOrphanToolMessage() {
@@ -227,12 +227,12 @@ class SubtaskHandoffTest {
     }
 
     /**
-     * Regressionstest fuer einen real beobachteten Fehler.
+     * Regression test for an actually observed error.
      * <p>
-     * submit_subtask_summary beendet den Agenten. Ohne diese Regel rief das Modell
-     * das Werkzeug fuenfmal hintereinander auf — der Prompt sagte "exactly ONCE",
-     * aber ein Tool-Result mit JSON-Echo ist kein Stoppsignal, und nur der Runner
-     * kann die Schleife abbrechen. Folge: 22 Requests statt 6.
+     * submit_subtask_summary terminates the agent. Without this rule the model
+     * called the tool five times in a row — the prompt said "exactly ONCE",
+     * but a tool result with a JSON echo is not a stop signal, and only the runner
+     * can break the loop. Consequence: 22 requests instead of 6.
      */
     @Test
     void handoffCallTerminatesTheReactLoop() {
@@ -241,8 +241,8 @@ class SubtaskHandoffTest {
                 .arguments("{\"status\":\"success\",\"key_findings\":[\"a\"],"
                         + "\"next_action_recommendation\":\"next\"}").build();
 
-        // Gibt IMMER einen Tool-Call zurueck. Ohne Abbruch wuerde der Runner
-        // damit bis MAX_TOOL_CALLS durchlaufen.
+        // ALWAYS returns a tool call. Without a break the runner
+        // would run through to MAX_TOOL_CALLS with it.
         ChatModel alwaysCallsTool = new ChatModel() {
             int calls = 0;
 
@@ -268,7 +268,7 @@ class SubtaskHandoffTest {
                 "exactly one handoff call, not one per iteration");
     }
 
-    /** Ohne Handoff darf die Schleife weiterlaufen — der Abbruch ist spezifisch. */
+    /** Without a handoff the loop may keep running — the break is specific. */
     @Test
     void otherToolCallsDoNotTerminateTheLoop() {
         var req = dev.langchain4j.agent.tool.ToolExecutionRequest.builder()
@@ -297,11 +297,11 @@ class SubtaskHandoffTest {
     }
 
     /**
-     * Regressionstest: der Handoff darf die eigentliche Arbeit nicht abkuerzen.
+     * Regression test: the handoff must not cut short the actual work.
      * <p>
-     * Realer Befund: 3 von 4 Antworten riefen NUR submit_subtask_summary auf und
-     * uebersprangen analyzeDomain/defineTask. Das Gate lehnt den Aufruf ab, solange
-     * die Voraussetzungen fehlen, und AgentRunner beendet nur bei ERFOLG.
+     * Actual finding: 3 of 4 answers called ONLY submit_subtask_summary and
+     * skipped analyzeDomain/defineTask. The gate rejects the call as long as
+     * the prerequisites are missing, and AgentRunner terminates only on SUCCESS.
      */
     @Test
     void prematureHandoffIsRejectedAndDoesNotEndTheLoop() {
@@ -319,8 +319,8 @@ class SubtaskHandoffTest {
 
             @Override
             public ChatResponse doChat(ChatRequest chatRequest) {
-                // Turn 1: will sofort abgeben (zu frueh -> abgelehnt)
-                // Turn 2: macht BEIDE Analysen und gibt danach ab
+                // Turn 1: wants to hand in immediately (too early -> rejected)
+                // Turn 2: does BOTH analyses and hands in afterwards
                 return ChatResponse.builder().aiMessage(switch (calls++) {
                     case 0 -> new AiMessage("", List.of(handoffReq));
                     default -> new AiMessage("", List.of(analyzeReq, taskReq, handoffReq));
@@ -339,17 +339,17 @@ class SubtaskHandoffTest {
         AgentRunner.RunResult result = new AgentRunner(model, KB).run(
                 "agent1", "P1", "input X", ToolProvider.getAll(), gated, "wf-1");
 
-        // Der verfruehte Handoff darf den Lauf nicht beenden -> es gieng weiter.
+        // The premature handoff must not end the run -> it kept going.
         assertTrue(result.requests() > 1,
                 "a rejected handoff must not terminate the loop");
-        // Als Exception, damit AgentRunner ok=false setzt; das Modell sieht
-        // die Begruendung im Tool-Result.
+        // As an exception, so that AgentRunner sets ok=false; the model sees
+        // the rationale in the tool result.
         assertFalse(result.toolCalls().get(0).success(),
                 "the premature handoff must be recorded as failed");
         assertTrue(result.toolCalls().get(0).result().contains("rejected"),
                 "the model needs to learn why: " + result.toolCalls().get(0).result());
 
-        // Der spaete Handoff muss tatsaechlich durchgehen und den Lauf beenden.
+        // The late handoff must actually go through and end the run.
         assertEquals(2, result.requests(),
                 "turn 1 rejected, turn 2 does the analysis and terminates");
         boolean accepted = result.toolCalls().stream()

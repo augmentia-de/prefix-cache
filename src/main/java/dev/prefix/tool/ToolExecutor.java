@@ -1,16 +1,16 @@
 package dev.prefix.tool;
 
 /**
- * Führt die tatsächlichen Java-Methoden aus, wenn der LLM einen Tool Call anfragt.
+ * Runs the actual Java methods when the LLM requests a tool call.
  * <p>
- * Der LLM sendet nur Name + JSON-Argumente. Dieser Executor mappt auf echte Methoden.
+ * The LLM only sends name + JSON arguments. This executor maps them to real methods.
  */
 public interface ToolExecutor {
 
     /**
-     * @param toolName  vom LLM gewählt (z.B. "analyzeDomain")
-     * @param arguments JSON-String der Parameter
-     * @return Ergebnis als Text — wird an den LLM zurückgesendet
+     * @param toolName  chosen by the LLM (e.g. "analyzeDomain")
+     * @param arguments JSON string of the parameters
+     * @return result as text — is sent back to the LLM
      */
     String execute(String toolName, String arguments);
 }

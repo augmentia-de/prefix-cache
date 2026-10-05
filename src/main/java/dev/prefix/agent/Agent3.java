@@ -11,10 +11,10 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Agent3 — SHARED KNOWLEDGE PREFIX + optionales defineTask Tool.
+ * Agent3 — SHARED KNOWLEDGE PREFIX + optional defineTask tool.
  * <p>
- * Letzter Agent der Sequenz: empfängt die Handoffs von Agent1 und Agent2 und
- * gibt seinen eigenen über {@link SubtaskHandoff#TOOL_NAME} ab.
+ * Last agent of the sequence: receives the handoffs from Agent1 and Agent2 and
+ * hands in its own via {@link SubtaskHandoff#TOOL_NAME}.
  */
 @Component
 public class Agent3 implements Agent {
@@ -79,8 +79,8 @@ public class Agent3 implements Agent {
                 name(),
                 prompt(),
                 userInput,
-                ToolProvider.getAll(),   // gleiche Liste (byte-identisch!)
-                executor,                // defineTask ist opt-in erlaubt
+                ToolProvider.getAll(),   // same list (byte-identical!)
+                executor,                // defineTask is allowed on opt-in
                 state.getSessionId(),
                 state.visibleHandoffs()
         );
